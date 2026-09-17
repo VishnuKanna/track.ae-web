@@ -1,18 +1,26 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Download, LogOut, RefreshCw, ShieldCheck, Trash2 } from "lucide-react";
+import { Download, KeyRound, LogOut, RefreshCw, ShieldCheck, Trash2 } from "lucide-react";
 import { useAuth } from "@/store/AuthContext";
 import { useData } from "@/store/DataContext";
 import { useToast } from "@/store/ToastContext";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
-import { getAvatarUrl } from "@/lib/auth";
+import { getAuthErrorMessage, getAvatarUrl } from "@/lib/auth";
+import {
+  MIN_PASSWORD_LENGTH,
+  validateAuthPassword,
+  validatePasswordConfirm,
+  type ValidationErrors,
+} from "@/lib/validation";
+import { PasswordField } from "@/components/auth/PasswordField";
+import { AuthErrorBox } from "@/components/auth/AuthShell";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { downloadCSV, jobsToRows, buildCSV } from "@/lib/csv";
 import type { HRContact } from "@/types/database";
 
 export function Settings() {
-  const { profile, user, logout: signOut } = useAuth();
+  const { profile, user, logout: signOut, updatePassword } = useAuth();
   const { jobs, companies, contactsForJob, hydrated, loading } = useData();
   const toast = useToast();
   const navigate = useNavigate();
@@ -21,6 +29,43 @@ export function Settings() {
   const [confirmExport, setConfirmExport] = useState(false);
   const [confirmDatamap, setConfirmDatamap] = useState(false);
   const [showSignOut, setShowSignOut] = useState(false);
+
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordErrors, setPasswordErrors] = useState<ValidationErrors>({});
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+
+  const hasPassword = !!user?.identities?.some((i) => i.provider === "email");
+
+  const doUpdatePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPasswordError(null);
+
+    const errors: ValidationErrors = {};
+    const passwordError = validateAuthPassword(password);
+    if (passwordError) errors.password = passwordError;
+    const confirmError = validatePasswordConfirm(password, confirmPassword);
+    if (confirmError) errors.confirm = confirmError;
+    if (Object.keys(errors).length) {
+      setPasswordErrors(errors);
+      return;
+    }
+    setPasswordErrors({});
+
+    setBusy("password");
+    try {
+      await updatePassword(password);
+      setPassword("");
+      setConfirmPassword("");
+      toast.success(
+        hasPassword ? "Password updated." : "Password set. You can now sign in with email."
+      );
+    } catch (err) {
+      setPasswordError(getAuthErrorMessage(err));
+    } finally {
+      setBusy(null);
+    }
+  };
 
   const doExport = async () => {
     setBusy("export");
@@ -127,6 +172,56 @@ export function Settings() {
               ? `${jobs.length} applications · ${companies.length} companies`
               : "Syncing…"}
           </div>
+        </div>
+      </div>
+
+      <div className="section" style={{ marginTop: 28 }}>
+        <h2 className="section-label" style={{ marginBottom: 12 }}>Account & security</h2>
+        <div className="panel settings-password">
+          <div className="row" style={{ alignItems: "center", gap: 10, marginBottom: 4 }}>
+            <KeyRound size={16} className="series-orange" />
+            <span style={{ fontWeight: 500 }}>
+              {hasPassword ? "Change your password" : "Set a Track.AE password"}
+            </span>
+          </div>
+          <p className="faint" style={{ fontSize: 13, marginBottom: 8 }}>
+            {hasPassword
+              ? "Update the password you use to sign in with your email address."
+              : "Add a password to sign in with email instead of Google — same account, same data."}
+          </p>
+
+          {passwordError && <AuthErrorBox>{passwordError}</AuthErrorBox>}
+
+          <form className="auth-form" onSubmit={doUpdatePassword} noValidate>
+            <PasswordField
+              id="settings-password"
+              label="New password"
+              value={password}
+              onChange={setPassword}
+              error={passwordErrors.password}
+              hint={`At least ${MIN_PASSWORD_LENGTH} characters.`}
+              autoComplete="new-password"
+              disabled={busy === "password"}
+            />
+            <PasswordField
+              id="settings-confirm"
+              label="Confirm new password"
+              value={confirmPassword}
+              onChange={setConfirmPassword}
+              error={passwordErrors.confirm}
+              autoComplete="new-password"
+              disabled={busy === "password"}
+            />
+            <Button
+              type="submit"
+              variant="secondary"
+              loading={busy === "password"}
+              loadingLabel="Saving…"
+              disabled={busy !== null}
+            >
+              {hasPassword ? "Update password" : "Set password"}
+            </Button>
+          </form>
         </div>
       </div>
 

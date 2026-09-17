@@ -14,13 +14,33 @@ import { upsertProfile, isConfigMissing } from "@/lib/auth";
 import { formatSupabaseError, withTimeout } from "@/lib/validation";
 import type { Profile } from "@/types/database";
 
+export interface SignUpInput {
+  name: string;
+  email: string;
+  password: string;
+}
+
+export interface SignUpResult {
+  /** True when Supabase requires the user to confirm their email first. */
+  needsConfirmation: boolean;
+}
+
 export interface AuthContextValue {
   user: User | null;
   profile: Profile | null;
   profileError: string | null;
   loading: boolean;
   configMissing: boolean;
+  /** Google OAuth sign-in (kept intact for existing Google accounts). */
   signIn: () => Promise<void>;
+  /** Email + password sign-in. */
+  signInWithEmail: (email: string, password: string) => Promise<void>;
+  /** Email + password account creation, optionally syncing the display name. */
+  signUp: (input: SignUpInput) => Promise<SignUpResult>;
+  /** Sends a password reset email for the given address. */
+  resetPassword: (email: string) => Promise<void>;
+  /** Sets/changes the password on the current authenticated account. */
+  updatePassword: (password: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
@@ -75,6 +95,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setProfileError(formatSupabaseError(err, "Could not load your profile."));
     }
   }, []);
+
+  /** Marks a user as active and (re)loads their profile. Shared by every
+   *  successful sign-in path so profile creation stays consistent. */
+  const activateUser = useCallback(
+    async (sb: SupabaseClient, u: User) => {
+      profileFetchedFor.current = u.id;
+      setUser(u);
+      await loadProfile(sb, u);
+    },
+    [loadProfile]
+  );
 
   useEffect(() => {
     if (!supabase) {
@@ -149,6 +180,69 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const signInWithEmail = useCallback(
+    async (email: string, password: string) => {
+      if (isConfigMissing()) {
+        setConfigMissing(true);
+        throw new Error("Track.AE isn't connected to Supabase yet.");
+      }
+      const sb = getSupabase();
+      const { data, error } = await sb.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
+      if (error) throw error;
+      if (data.user) await activateUser(sb, data.user);
+    },
+    [activateUser]
+  );
+
+  const signUp = useCallback(
+    async (input: SignUpInput): Promise<SignUpResult> => {
+      if (isConfigMissing()) {
+        setConfigMissing(true);
+        throw new Error("Track.AE isn't connected to Supabase yet.");
+      }
+      const sb = getSupabase();
+      const { data, error } = await sb.auth.signUp({
+        email: input.email.trim(),
+        password: input.password,
+        options: {
+          data: { full_name: input.name.trim() },
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+        },
+      });
+      if (error) throw error;
+      const needsConfirmation = !data.session;
+      if (data.session?.user) await activateUser(sb, data.session.user);
+      return { needsConfirmation };
+    },
+    [activateUser]
+  );
+
+  const resetPassword = useCallback(async (email: string) => {
+    if (isConfigMissing()) {
+      setConfigMissing(true);
+      throw new Error("Track.AE isn't connected to Supabase yet.");
+    }
+    const sb = getSupabase();
+    const { error } = await sb.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+    if (error) throw error;
+  }, []);
+
+  const updatePassword = useCallback(async (password: string) => {
+    if (isConfigMissing()) {
+      setConfigMissing(true);
+      throw new Error("Track.AE isn't connected to Supabase yet.");
+    }
+    const sb = getSupabase();
+    const { data, error } = await sb.auth.updateUser({ password });
+    if (error) throw error;
+    if (data.user) setUser(data.user);
+  }, []);
+
   const logout = useCallback(async () => {
     try {
       await getSupabase().auth.signOut();
@@ -179,10 +273,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loading,
       configMissing,
       signIn,
+      signInWithEmail,
+      signUp,
+      resetPassword,
+      updatePassword,
       logout,
       refreshProfile,
     }),
-    [user, profile, profileError, loading, configMissing, signIn, logout, refreshProfile]
+    [
+      user,
+      profile,
+      profileError,
+      loading,
+      configMissing,
+      signIn,
+      signInWithEmail,
+      signUp,
+      resetPassword,
+      updatePassword,
+      logout,
+      refreshProfile,
+    ]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

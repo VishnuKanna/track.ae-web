@@ -1,8 +1,180 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { motion } from "motion/react";
-import { AlertTriangle, ArrowLeft } from "lucide-react";
 import { useAuth } from "@/store/AuthContext";
+import { Button } from "@/components/ui/Button";
+import { Field } from "@/components/ui/Field";
+import { Input } from "@/components/ui/Input";
+import {
+  AuthConfigWarning,
+  AuthErrorBox,
+  AuthShell,
+  AuthSuccessBox,
+} from "@/components/auth/AuthShell";
+import { PasswordField } from "@/components/auth/PasswordField";
+import {
+  isBlank,
+  validateAuthEmail,
+  type ValidationErrors,
+} from "@/lib/validation";
+import { getAuthErrorMessage } from "@/lib/auth";
+
+export function Login() {
+  const { user, loading, configMissing, signIn, signInWithEmail } = useAuth();
+  const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const oauthError = params.get("error") || params.get("error_description");
+  const justConfirmed = params.get("confirmed") === "1";
+
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<ValidationErrors>({});
+  const [serverError, setServerError] = useState<string | null>(null);
+  const [busy, setBusy] = useState<"email" | "google" | null>(null);
+
+  useEffect(() => {
+    if (!loading && user) navigate("/dashboard", { replace: true });
+  }, [user, loading, navigate]);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setServerError(null);
+
+    const errors: ValidationErrors = {};
+    const emailError = validateAuthEmail(email);
+    if (emailError) errors.email = emailError;
+    if (isBlank(password)) errors.password = "Password is required.";
+    if (Object.keys(errors).length) {
+      setFieldErrors(errors);
+      return;
+    }
+    setFieldErrors({});
+
+    setBusy("email");
+    try {
+      await signInWithEmail(email, password);
+      navigate("/dashboard", { replace: true });
+    } catch (err) {
+      setServerError(getAuthErrorMessage(err));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const goGoogle = async () => {
+    setServerError(null);
+    setBusy("google");
+    try {
+      await signIn();
+    } catch {
+      setBusy(null);
+      setServerError("Could not start Google sign-in. Please try again.");
+    }
+  };
+
+  const disabled = busy !== null;
+
+  return (
+    <AuthShell>
+      <h1 className="auth-title">Welcome back.</h1>
+      <p className="auth-sub">Sign in with your email and password.</p>
+
+      {oauthError && (
+        <AuthErrorBox>
+          {oauthError === "access_denied"
+            ? "Sign-in was cancelled."
+            : typeof oauthError === "string" && oauthError.length > 0 && oauthError.length < 180
+            ? oauthError
+            : "Sign-in was cancelled or failed. Please try again."}
+        </AuthErrorBox>
+      )}
+
+      {justConfirmed && (
+        <AuthSuccessBox>Email confirmed — sign in to continue.</AuthSuccessBox>
+      )}
+
+      {configMissing ? (
+        <AuthConfigWarning />
+      ) : (
+        <>
+          {serverError && <AuthErrorBox>{serverError}</AuthErrorBox>}
+
+          <form className="auth-form" onSubmit={submit} noValidate>
+            <Field label="Email" htmlFor="login-email" error={fieldErrors.email} required>
+              <Input
+                id="login-email"
+                type="email"
+                inputMode="email"
+                autoComplete="email"
+                placeholder="you@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                invalid={!!fieldErrors.email}
+                disabled={disabled}
+              />
+            </Field>
+
+            <PasswordField
+              id="login-password"
+              label="Password"
+              value={password}
+              onChange={setPassword}
+              error={fieldErrors.password}
+              autoComplete="current-password"
+              disabled={disabled}
+            />
+
+            <div className="auth-row">
+              <Link to="/forgot-password" className="auth-link">
+                Forgot password?
+              </Link>
+            </div>
+
+            <Button
+              type="submit"
+              size="block"
+              className="btn-lg"
+              loading={busy === "email"}
+              loadingLabel="Signing in…"
+              disabled={disabled}
+            >
+              Log in
+            </Button>
+          </form>
+
+          <div className="auth-or" aria-hidden>
+            <span>or</span>
+          </div>
+
+          <button
+            type="button"
+            className="btn btn-secondary btn-lg btn-block auth-google-btn"
+            onClick={goGoogle}
+            disabled={disabled}
+          >
+            {busy === "google" ? (
+              <span className="btn-spinner" aria-hidden />
+            ) : (
+              <GoogleIcon />
+            )}
+            {busy === "google" ? "Opening Google…" : "Continue with Google"}
+          </button>
+
+          <p className="auth-switch">
+            New to Track.AE?{" "}
+            <Link to="/signup" className="auth-link">
+              Create an account
+            </Link>
+          </p>
+        </>
+      )}
+
+      <p className="auth-legal faint">
+        Sign in with the email and password you used to create your Track.AE account.
+        We never ask for or store your Google account password.
+      </p>
+    </AuthShell>
+  );
+}
 
 export function GoogleIcon({ size = 18 }: { size?: number }) {
   return (
@@ -14,100 +186,5 @@ export function GoogleIcon({ size = 18 }: { size?: number }) {
         <path fill="#EA4335" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.2 4.3-4.3 5.8l6.4 5C41.9 36.4 44 32.4 44 27.5c0-2.4-.2-4.6-.4-7z"/>
       </svg>
     </span>
-  );
-}
-
-export function Login() {
-  const { signIn, configMissing, loading, user } = useAuth();
-  const navigate = useNavigate();
-  const [params, setParams] = useSearchParams();
-  const mode = params.get("mode") === "signup" ? "signup" : "login";
-  const [busy, setBusy] = useState(false);
-  const error = params.get("error") || params.get("error_description");
-
-  useEffect(() => {
-    if (user) navigate("/dashboard", { replace: true });
-  }, [user, navigate]);
-
-  const go = async () => {
-    setBusy(true);
-    try {
-      await signIn();
-    } catch {
-      setBusy(false);
-      setParams({ error: "Could not start Google sign-in. Please try again." });
-    }
-  };
-
-  return (
-    <div className="auth-page">
-      <div className="auth-grid" aria-hidden />
-      <div className="auth-glow" aria-hidden />
-
-      <div className="auth-card-wrap">
-        <motion.div
-          className="auth-card"
-          initial={{ opacity: 0, y: 18 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-        >
-          <Link to="/" className="auth-brand">
-            TRACK.AE<span className="brand-dot" />
-          </Link>
-
-          <h1 className="auth-title">
-            {mode === "signup" ? "Start tracking your next move." : "Welcome back."}
-          </h1>
-          <p className="auth-sub">
-            {mode === "signup"
-              ? "Create your account and build your career pipeline in minutes."
-              : "Sign in to your command center."}
-          </p>
-
-          {configMissing ? (
-            <div className="auth-setup-warn">
-              <AlertTriangle size={18} />
-              <p>
-                Track.AE isn't connected to Supabase yet. Copy <code>.env.example</code> to{" "}
-                <code>.env.local</code> and add your Supabase URL and anon key, then restart.
-              </p>
-            </div>
-          ) : (
-            <button
-              className="btn btn-primary btn-lg btn-block auth-google-btn"
-              onClick={go}
-              disabled={busy || loading}
-            >
-              <GoogleIcon />
-              {busy ? "Signing in…" : mode === "signup" ? "Sign up with Google" : "Continue with Google"}
-            </button>
-          )}
-
-          {error && (
-            <motion.p
-              className="auth-error"
-              initial={{ opacity: 0, y: -4 }}
-              animate={{ opacity: 1, y: 0 }}
-              role="alert"
-            >
-              {error === "access_denied"
-                ? "Sign-in was cancelled."
-                : typeof error === "string" && error.length > 0 && error.length < 180
-                ? error
-                : "Google sign-in was cancelled or failed. Please try again."}
-            </motion.p>
-          )}
-
-          <p className="auth-legal faint">
-            By continuing you agree to use Track.AE for personal career tracking. Only your
-            Google profile name, email, and avatar are used.
-          </p>
-
-          <Link to="/" className="auth-back">
-            <ArrowLeft size={14} /> Back to home
-          </Link>
-        </motion.div>
-      </div>
-    </div>
   );
 }

@@ -80,10 +80,10 @@ export function Landing() {
             Features
             <ChevronDown size={15} />
           </button>
-          <Link to="/login?mode=login" className="btn btn-ghost-light">
+          <Link to="/login" className="btn btn-ghost-light">
             Login
           </Link>
-          <Link to="/login?mode=signup" className="btn btn-light-solid">
+          <Link to="/signup" className="btn btn-light-solid">
             Sign up
           </Link>
         </div>
@@ -144,23 +144,16 @@ export function Landing() {
         </motion.p>
 
         <motion.div className="hero-ctas" {...fadeUp(0.45)}>
-          <Link to="/login?mode=signup" className="btn btn-primary btn-lg">
-            Continue with Google
-            <span className="google-g" aria-hidden>
-              <svg width="18" height="18" viewBox="0 0 48 48">
-                <path fill="#fff" d="M43.6 20.5H42V20H24v8h11.3C33.5 32.7 29.1 35.5 24 35.5c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3l5.7-5.7C34.3 5.7 29.4 4 24 4 13 4 4 13 4 24s9 20 20 20c11.5 0 19-8.1 19-19.5 0-1.3-.1-2.6-.4-4z"/>
-                <path fill="#ff6a00" d="m6.3 14.7 6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.9 1.2 8 3l5.7-5.7C34.3 5.7 29.4 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/>
-                <path fill="#ff6a00" d="M24 44c5.2 0 9.9-1.9 13.4-5L31 34.9c-1.9 1.3-4.4 2.1-7 2.1-5.1 0-9.4-3.1-11.1-7.5l-6.4 5C10.2 39.4 16.6 44 24 44z"/>
-                <path fill="#ff6a00" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.2 4.3-4.3 5.8l6.4 5C41.9 36.4 44 32.4 44 27.5c0-2.4-.2-4.6-.4-7z"/>
-              </svg>
-            </span>
+          <Link to="/signup" className="btn btn-primary btn-lg">
+            Create your account
+            <ArrowRight size={16} />
           </Link>
           <button
             type="button"
             className="btn btn-ghost-light"
             onClick={() => setFeaturesOpen((o) => !o)}
           >
-            View features <ArrowRight size={16} />
+            View features
           </button>
         </motion.div>
       </section>

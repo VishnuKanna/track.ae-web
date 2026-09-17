@@ -19,6 +19,29 @@ export function isValidEmail(v?: string | null): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
 }
 
+export const MIN_PASSWORD_LENGTH = 8;
+
+/** Email/password auth validators. Return an error string or null. */
+export function validateAuthEmail(v: string): string | null {
+  if (isBlank(v)) return "Email is required.";
+  if (!isValidEmail(v)) return "Enter a valid email address.";
+  return null;
+}
+
+export function validateAuthPassword(v: string): string | null {
+  if (!v) return "Password is required.";
+  if (v.length < MIN_PASSWORD_LENGTH) {
+    return `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`;
+  }
+  return null;
+}
+
+export function validatePasswordConfirm(password: string, confirm: string): string | null {
+  if (!confirm) return "Please confirm your password.";
+  if (password !== confirm) return "Passwords do not match.";
+  return null;
+}
+
 export function isValidSalary(v?: string | null): boolean {
   if (!v || v.trim() === "") return true;
   const n = Number(v);

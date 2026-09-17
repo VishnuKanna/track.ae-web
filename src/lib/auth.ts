@@ -90,3 +90,37 @@ export async function upsertProfile(sb: SupabaseClient, user: User) {
 export function isConfigMissing(): boolean {
   return !isSupabaseConfigured;
 }
+
+/** Maps Supabase auth failures to clear, user-facing copy. */
+export function getAuthErrorMessage(err: unknown): string {
+  const raw = err instanceof Error ? err.message : typeof err === "string" ? err : "";
+  const msg = raw.trim();
+  const lower = msg.toLowerCase();
+
+  if (!msg) return "Something went wrong. Please try again.";
+  if (lower.includes("invalid login credentials")) {
+    return "Invalid email or password.";
+  }
+  if (lower.includes("email not confirmed") || lower.includes("not confirmed")) {
+    return "Please confirm your email before signing in — check your inbox for the confirmation link.";
+  }
+  if (lower.includes("already registered") || lower.includes("already been registered")) {
+    return "An account with this email already exists. Try logging in instead.";
+  }
+  if (lower.includes("security restrictions") || lower.includes("reauthentication")) {
+    return "For security, please sign out and sign back in, then try again.";
+  }
+  if (lower.includes("too many requests") || lower.includes("rate limit")) {
+    return "Too many attempts. Please wait a minute and try again.";
+  }
+  if (lower.includes("password should be at least") || lower.includes("password is too short")) {
+    return msg.length <= 180 ? msg : "Please choose a longer password.";
+  }
+  if (lower.includes("unable to validate email") || lower.includes("invalid email")) {
+    return "Enter a valid email address.";
+  }
+  if (lower.includes("failed to fetch") || lower.includes("network")) {
+    return "Network error. Check your connection and try again.";
+  }
+  return msg.length <= 180 ? msg : "Something went wrong. Please try again.";
+}

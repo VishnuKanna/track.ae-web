@@ -9,6 +9,9 @@ import { AppShell } from "@/components/layout/AppShell";
 import { RequireAuth } from "@/pages/RequireAuth";
 import { Landing } from "@/pages/Landing";
 import { Login } from "@/pages/Login";
+import { SignUp } from "@/pages/SignUp";
+import { ForgotPassword } from "@/pages/ForgotPassword";
+import { ResetPassword } from "@/pages/ResetPassword";
 import { AuthCallback } from "@/pages/AuthCallback";
 import { Dashboard } from "@/pages/Dashboard";
 import { Applications } from "@/pages/Applications";
@@ -50,6 +53,9 @@ export function App() {
             <Routes>
               <Route path="/" element={<Landing />} />
               <Route path="/login" element={<Login />} />
+              <Route path="/signup" element={<SignUp />} />
+              <Route path="/forgot-password" element={<ForgotPassword />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/auth/callback" element={<AuthCallback />} />
 
               <Route element={<RequireAuth />}>

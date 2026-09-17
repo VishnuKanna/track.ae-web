@@ -15,13 +15,17 @@ export function AuthCallback() {
   const [params] = useSearchParams();
 
   useEffect(() => {
-    const err = params.get("error");
-    const desc = params.get("error_description");
+    const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+    const err = params.get("error") || hash.get("error");
+    const desc = params.get("error_description") || hash.get("error_description");
+    const code = params.get("error_code") || hash.get("error_code");
     if (err) {
+      const message =
+        code === "otp_expired"
+          ? "This email link has expired. Sign in to request a new one."
+          : desc || err;
       navigate(
-        `/login?${new URLSearchParams({
-          error: desc || err,
-        })}`,
+        `/login?${new URLSearchParams({ error: message })}`,
         { replace: true }
       );
       return;
