@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "motion/react";
 import { AlertTriangle, ArrowLeft } from "lucide-react";
 import { useAuth } from "@/store/AuthContext";
@@ -19,14 +19,15 @@ export function GoogleIcon({ size = 18 }: { size?: number }) {
 
 export function Login() {
   const { signIn, configMissing, loading, user } = useAuth();
+  const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const mode = params.get("mode") === "signup" ? "signup" : "login";
   const [busy, setBusy] = useState(false);
   const error = params.get("error") || params.get("error_description");
 
   useEffect(() => {
-    if (user) window.location.href = "/dashboard";
-  }, [user]);
+    if (user) navigate("/dashboard", { replace: true });
+  }, [user, navigate]);
 
   const go = async () => {
     setBusy(true);

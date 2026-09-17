@@ -1,16 +1,17 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { motion } from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
 import {
   ArrowRight,
   BellRing,
   CalendarClock,
+  ChevronDown,
+  ClipboardList,
   Layers,
   Send,
-  Sparkles,
-  TrendingUp,
 } from "lucide-react";
 import { useAuth } from "@/store/AuthContext";
+import { cn } from "@/lib/cn";
 
 const ease = [0.16, 1, 0.3, 1] as const;
 
@@ -23,6 +24,7 @@ const fadeUp = (delay = 0) => ({
 export function Landing() {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
+  const [featuresOpen, setFeaturesOpen] = useState(false);
 
   useEffect(() => {
     if (user) navigate("/dashboard", { replace: true });
@@ -68,6 +70,16 @@ export function Landing() {
       <nav className="landing-nav" aria-label="Primary">
         <span className="brand">TRACK.AE<span className="brand-dot" /></span>
         <div className="landing-nav-actions">
+          <button
+            type="button"
+            className={cn("features-toggle btn btn-ghost-light", featuresOpen && "is-open")}
+            onClick={() => setFeaturesOpen((o) => !o)}
+            aria-expanded={featuresOpen}
+            aria-controls="landing-features"
+          >
+            Features
+            <ChevronDown size={15} />
+          </button>
           <Link to="/login?mode=login" className="btn btn-ghost-light">
             Login
           </Link>
@@ -77,14 +89,53 @@ export function Landing() {
         </div>
       </nav>
 
+      <AnimatePresence initial={false}>
+        {featuresOpen && (
+          <motion.section
+            className="features-panel"
+            id="landing-features"
+            role="region"
+            aria-label="Track.AE features"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.45, ease }}
+          >
+            <div className="features-panel-inner">
+              <div className="fp-item">
+                <span className="fp-head">
+                  <span className="fp-icon"><Layers size={15} /></span>
+                  <span className="fp-title">Track</span>
+                </span>
+                <p className="fp-desc">Keep every job application organized in one place.</p>
+              </div>
+              <div className="fp-item">
+                <span className="fp-head">
+                  <span className="fp-icon"><ClipboardList size={15} /></span>
+                  <span className="fp-title">Log</span>
+                </span>
+                <p className="fp-desc">Capture interviews, follow-ups, HR contacts and important updates.</p>
+              </div>
+              <div className="fp-item">
+                <span className="fp-head">
+                  <span className="fp-icon"><CalendarClock size={15} /></span>
+                  <span className="fp-title">Check your jobs</span>
+                </span>
+                <p className="fp-desc">See what needs your attention and stay on top of every opportunity.</p>
+              </div>
+            </div>
+          </motion.section>
+        )}
+      </AnimatePresence>
+
       <section className="hero">
         <motion.div className="hero-eyebrow" {...fadeUp(0.05)}>
           <span className="hero-orb anim-dot-pulse" />
-          <span>Career command center</span>
+          <span>Track your next move</span>
         </motion.div>
 
         <motion.h1 className="hero-title" {...fadeUp(0.15)}>
-          Track your <span className="hl">next move.</span>
+          Job tracking made <span className="hl">easy.</span>
         </motion.h1>
 
         <motion.p className="hero-sub" {...fadeUp(0.3)}>
@@ -104,35 +155,14 @@ export function Landing() {
               </svg>
             </span>
           </Link>
-          <a href="#features" className="btn btn-ghost-light">
-            Explore Track.AE <ArrowRight size={16} />
-          </a>
+          <button
+            type="button"
+            className="btn btn-ghost-light"
+            onClick={() => setFeaturesOpen((o) => !o)}
+          >
+            View features <ArrowRight size={16} />
+          </button>
         </motion.div>
-
-        <motion.span className="hero-hint" {...fadeUp(0.9)}>
-          Scroll to explore
-        </motion.span>
-      </section>
-
-      <section className="features" id="features">
-        <div className="features-inner">
-          <div className="feature">
-            <h3><span className="fi"><Layers size={16} /></span> One pipeline</h3>
-            <p>Every application, every company, every interview — in one quiet view.</p>
-          </div>
-          <div className="feature">
-            <h3><span className="fi"><BellRing size={16} /></span> Follow-up intelligence</h3>
-            <p>Know exactly who to ping and when. No more dropped threads.</p>
-          </div>
-          <div className="feature">
-            <h3><span className="fi"><TrendingUp size={16} /></span> Honest analytics</h3>
-            <p>Real conversion rates from your real search. No vanity numbers.</p>
-          </div>
-          <div className="feature">
-            <h3><span className="fi"><Sparkles size={16} /></span> Built for mobile</h3>
-            <p>Log opportunities from your phone in seconds, refine them later.</p>
-          </div>
-        </div>
       </section>
 
       <footer className="landing-foot">
