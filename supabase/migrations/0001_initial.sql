@@ -35,7 +35,7 @@ create policy "profiles_update_own"
   using (auth.uid() = id)
   with check (auth.uid() = id);
 
--- Auto-create / sync profile when a user signs up via Google.
+-- Auto-create / sync profile when a new user signs up.
 create or replace function public.handle_new_user()
 returns trigger
 language plpgsql

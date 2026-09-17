@@ -148,13 +148,9 @@ export function Landing() {
             Create your account
             <ArrowRight size={16} />
           </Link>
-          <button
-            type="button"
-            className="btn btn-ghost-light"
-            onClick={() => setFeaturesOpen((o) => !o)}
-          >
-            View features
-          </button>
+          <Link to="/login" className="btn btn-ghost-light">
+            Log in
+          </Link>
         </motion.div>
       </section>
 

@@ -12,7 +12,6 @@ import {
 } from "@/components/auth/AuthShell";
 import { PasswordField } from "@/components/auth/PasswordField";
 import {
-  isBlank,
   MIN_PASSWORD_LENGTH,
   validateAuthEmail,
   validateAuthPassword,
@@ -25,14 +24,13 @@ export function SignUp() {
   const { user, loading, configMissing, signUp } = useAuth();
   const navigate = useNavigate();
 
-  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [fieldErrors, setFieldErrors] = useState<ValidationErrors>({});
   const [serverError, setServerError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [needsConfirmation, setNeedsConfirmation] = useState(false);
+  const [created, setCreated] = useState(false);
 
   useEffect(() => {
     if (!loading && user) navigate("/dashboard", { replace: true });
@@ -43,7 +41,6 @@ export function SignUp() {
     setServerError(null);
 
     const errors: ValidationErrors = {};
-    if (isBlank(name)) errors.name = "Name is required.";
     const emailError = validateAuthEmail(email);
     if (emailError) errors.email = emailError;
     const passwordError = validateAuthPassword(password);
@@ -59,14 +56,21 @@ export function SignUp() {
 
     setBusy(true);
     try {
-      const result = await signUp({ name, email, password });
+      const emailValue = email.trim();
+      const result = await signUp({
+        name: emailValue.split("@")[0],
+        email: emailValue,
+        password,
+      });
       if (result.needsConfirmation) {
-        setNeedsConfirmation(true);
+        setCreated(true);
       } else {
         navigate("/dashboard", { replace: true });
       }
     } catch (err) {
-      setServerError(getAuthErrorMessage(err));
+      setServerError(
+        getAuthErrorMessage(err, "Unable to create your account. Please try again.")
+      );
     } finally {
       setBusy(false);
     }
@@ -75,22 +79,20 @@ export function SignUp() {
   return (
     <AuthShell>
       <h1 className="auth-title">
-        {needsConfirmation ? "Check your email." : "Create your account."}
+        {created ? "You're all set." : "Create your account."}
       </h1>
 
-      {needsConfirmation ? (
+      {created ? (
         <>
           <p className="auth-sub">
-            We sent a confirmation link to <strong>{email}</strong>. Open it to
-            activate your Track.AE account, then come back and sign in.
+            Your Track.AE account for <strong>{email}</strong> has been created.
           </p>
-          <AuthSuccessBox icon="mail">
-            Didn't get it? Check spam, or{" "}
-            <Link to="/login" className="auth-link">
-              try signing in
-            </Link>{" "}
-            to resend.
+          <AuthSuccessBox>
+            Sign in to start tracking your applications.
           </AuthSuccessBox>
+          <Link to="/login" className="btn btn-primary btn-lg btn-block">
+            Log in
+          </Link>
         </>
       ) : (
         <>
@@ -103,20 +105,12 @@ export function SignUp() {
               {serverError && <AuthErrorBox>{serverError}</AuthErrorBox>}
 
               <form className="auth-form" onSubmit={submit} noValidate>
-                <Field label="Name" htmlFor="signup-name" error={fieldErrors.name} required>
-                  <Input
-                    id="signup-name"
-                    type="text"
-                    autoComplete="name"
-                    placeholder="Your name"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    invalid={!!fieldErrors.name}
-                    disabled={busy}
-                  />
-                </Field>
-
-                <Field label="Email" htmlFor="signup-email" error={fieldErrors.email} required>
+                <Field
+                  label="Username / Email"
+                  htmlFor="signup-email"
+                  error={fieldErrors.email}
+                  required
+                >
                   <Input
                     id="signup-email"
                     type="email"
@@ -143,7 +137,7 @@ export function SignUp() {
 
                 <PasswordField
                   id="signup-confirm"
-                  label="Confirm password"
+                  label="Confirm Password"
                   value={confirm}
                   onChange={setConfirm}
                   error={fieldErrors.confirm}
@@ -175,8 +169,8 @@ export function SignUp() {
       )}
 
       <p className="auth-legal faint">
-        Your password is stored securely by Supabase Auth. We never ask for or
-        store your Google account password.
+        Your password is managed securely by Supabase Auth. We never store or
+        display your password.
       </p>
     </AuthShell>
   );

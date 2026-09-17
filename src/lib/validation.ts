@@ -31,7 +31,7 @@ export function validateAuthEmail(v: string): string | null {
 export function validateAuthPassword(v: string): string | null {
   if (!v) return "Password is required.";
   if (v.length < MIN_PASSWORD_LENGTH) {
-    return `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`;
+    return "Use a stronger password.";
   }
   return null;
 }

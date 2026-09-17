@@ -187,7 +187,7 @@ export function Settings() {
           <p className="faint" style={{ fontSize: 13, marginBottom: 8 }}>
             {hasPassword
               ? "Update the password you use to sign in with your email address."
-              : "Add a password to sign in with email instead of Google — same account, same data."}
+              : "Add a password to sign in with your email address."}
           </p>
 
           {passwordError && <AuthErrorBox>{passwordError}</AuthErrorBox>}

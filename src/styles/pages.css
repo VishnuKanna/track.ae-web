@@ -60,7 +60,6 @@
   line-height: 1.15;
 }
 .auth-sub { color: var(--text-secondary-dark); font-size: var(--fs-md); margin-top: -8px; }
-.auth-google-btn { min-height: 52px; font-size: 15px; }
 .auth-legal { font-size: var(--fs-xs); line-height: 1.5; color: var(--text-tertiary-dark); }
 .auth-error {
   padding: 12px 14px;
@@ -118,22 +117,6 @@
   display: flex;
   justify-content: flex-end;
   margin: -6px 0 12px;
-}
-.auth-or {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  color: var(--text-tertiary-dark);
-  font-size: var(--fs-xs);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-.auth-or::before,
-.auth-or::after {
-  content: "";
-  flex: 1;
-  height: 1px;
-  background: var(--border-dark);
 }
 .auth-switch {
   text-align: center;

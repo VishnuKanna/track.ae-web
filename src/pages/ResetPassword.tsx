@@ -50,7 +50,9 @@ export function ResetPassword() {
       toast.success("Password updated. You're signed in.");
       navigate("/dashboard", { replace: true });
     } catch (err) {
-      setServerError(getAuthErrorMessage(err));
+      setServerError(
+        getAuthErrorMessage(err, "Unable to update your password. Please try again.")
+      );
     } finally {
       setBusy(false);
     }

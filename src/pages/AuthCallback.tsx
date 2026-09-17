@@ -4,10 +4,10 @@ import { BrandLoader } from "@/components/ui/BrandLoader";
 import { useAuth } from "@/store/AuthContext";
 
 /**
- * Handles the return trip from Google OAuth.
- * Supabase exchanges the PKCE code automatically on client init
- * (detectSessionInUrl). This page just waits for that to finish and
- * forwards the user, reflecting any OAuth error cleanly.
+ * Handles the return trip from Supabase email links (e.g. password
+ * recovery). Supabase exchanges the PKCE code automatically on client
+ * init (detectSessionInUrl). This page waits for that to finish and
+ * forwards the user, reflecting any error cleanly.
  */
 export function AuthCallback() {
   const { user, loading } = useAuth();

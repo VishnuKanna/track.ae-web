@@ -38,7 +38,9 @@ export function ForgotPassword() {
       await resetPassword(email);
       setSent(true);
     } catch (err) {
-      setServerError(getAuthErrorMessage(err));
+      setServerError(
+        getAuthErrorMessage(err, "Unable to send the reset email. Please try again.")
+      );
     } finally {
       setBusy(false);
     }

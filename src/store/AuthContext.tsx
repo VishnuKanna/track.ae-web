@@ -31,8 +31,6 @@ export interface AuthContextValue {
   profileError: string | null;
   loading: boolean;
   configMissing: boolean;
-  /** Google OAuth sign-in (kept intact for existing Google accounts). */
-  signIn: () => Promise<void>;
   /** Email + password sign-in. */
   signInWithEmail: (email: string, password: string) => Promise<void>;
   /** Email + password account creation, optionally syncing the display name. */
@@ -166,20 +164,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [loadProfile]);
 
-  const signIn = useCallback(async () => {
-    if (isConfigMissing()) {
-      setConfigMissing(true);
-      return;
-    }
-    await supabase!.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
-        queryParams: { prompt: "select_account" },
-      },
-    });
-  }, []);
-
   const signInWithEmail = useCallback(
     async (email: string, password: string) => {
       if (isConfigMissing()) {
@@ -209,7 +193,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         password: input.password,
         options: {
           data: { full_name: input.name.trim() },
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
         },
       });
       if (error) throw error;
@@ -272,7 +255,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       profileError,
       loading,
       configMissing,
-      signIn,
       signInWithEmail,
       signUp,
       resetPassword,
@@ -286,7 +268,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       profileError,
       loading,
       configMissing,
-      signIn,
       signInWithEmail,
       signUp,
       resetPassword,
