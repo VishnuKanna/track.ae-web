@@ -342,7 +342,9 @@ export function ApplicationForm({
       };
 
       if (isEdit && job) {
-        await updateJob(job.id, input, { skipEvents: true });
+        // No skipEvents: if the user changed the status in the form, the
+        // timeline records exactly one "Status changed X → Y" event.
+        await updateJob(job.id, input);
         await deleteRemovedDrafts();
         await saveContactDrafts(job.id);
         toast.success("Application updated.");

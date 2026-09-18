@@ -17,7 +17,7 @@ import type {
   JobEvent,
   Profile,
 } from "@/types/database";
-import { statusByKey } from "@/config/status";
+import { eventStatusFor } from "@/config/events";
 import { todayISO } from "@/lib/format";
 import {
   formatSupabaseError,
@@ -594,30 +594,15 @@ export function DataProvider({
         // Automatic timeline events are best-effort: a failed event insert must
         // not roll back an application update that already succeeded.
         try {
-          // Status changes always produce a timeline event, even when the caller
-          // passes skipEvents (which only suppresses incidental follow-up noise).
-          if (statusChanged) {
-            const fromLabel = statusByKey(prev.status).label;
-            const toLabel = statusByKey(patch.status).label;
-            // Milestone transitions get a semantic first-class event; every
-            // other transition is a generic "Status changed X → Y". Either way
-            // previous/new status are stored so the timeline can show the move.
-            const semantic =
-              patch.status === "offer"
-                ? { type: "offer_received", title: "Offer received" }
-                : patch.status === "rejected"
-                ? { type: "rejected", title: "Rejected" }
-                : patch.status === "withdrawn"
-                ? { type: "withdrawn", title: "Withdrawn" }
-                : {
-                    type: "status_changed",
-                    title: `Status changed ${fromLabel} → ${toLabel}`,
-                  };
+          // A status change (dropdown / edit form) always produces exactly one
+          // generic "Status changed X → Y" event. skipEvents is used by the
+          // add-event flow, which creates its own transition event so it can
+          // timestamp it with the event's date instead of today.
+          if (statusChanged && !opts?.skipEvents) {
             await insertEventRow(id, {
-              event_type: semantic.type,
+              event_type: "status_changed",
               event_date: todayISO(),
-              title: semantic.title,
-              description: `${prev.job_title} moved from ${fromLabel} to ${toLabel}.`,
+              title: "Status changed",
               previous_status: prev.status,
               new_status: patch.status,
             });
@@ -994,8 +979,39 @@ export function DataProvider({
   );
 
   const addEvent = useCallback(
-    (jobId: string, input: EventInput) => insertEventRow(jobId, input),
-    [insertEventRow]
+    async (jobId: string, input: EventInput): Promise<JobEvent> => {
+      const event = await insertEventRow(jobId, input);
+
+      // Status ↔ Timeline synchronization, driven by the single centralized
+      // Event → Status map. Neutral events (follow-ups, assessments, document
+      // requests, individual interview rounds) leave the status untouched.
+      const target = eventStatusFor(input.event_type);
+      const current = jobsRef.current.find((j) => j.id === jobId);
+      if (target && current && current.status !== target) {
+        try {
+          // skipEvents: the transition event is created here so it can carry
+          // the event's own date, keeping the timeline in chronological order.
+          await updateJob(jobId, { status: target }, { skipEvents: true });
+          await insertEventRow(jobId, {
+            event_type: "status_changed",
+            event_date: input.event_date,
+            event_time: input.event_time ?? null,
+            title: "Status changed",
+            previous_status: current.status,
+            new_status: target,
+          });
+        } catch (err) {
+          // The event itself is saved; surface a precise, actionable error so
+          // the user can reconcile the status instead of silently diverging.
+          logSupabaseError("Event saved but status sync failed", err);
+          throw new Error(
+            "Event saved, but the status could not be updated. Please set it from the status menu."
+          );
+        }
+      }
+      return event;
+    },
+    [insertEventRow, updateJob]
   );
 
   const deleteEvent = useCallback(

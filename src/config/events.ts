@@ -5,7 +5,9 @@ import {
   Bookmark,
   CalendarClock,
   CheckCircle2,
+  ClipboardCheck,
   ClipboardList,
+  FileCheck,
   FileText,
   Flag,
   Hourglass,
@@ -17,8 +19,10 @@ import {
   ThumbsDown,
   ThumbsUp,
   UserCheck,
+  Users,
   XCircle,
 } from "lucide-react";
+import type { JobStatusKey } from "@/config/status";
 
 export interface EventTypeMeta {
   value: string;
@@ -55,12 +59,6 @@ export const EVENT_SECTIONS: EventSection[] = [
         icon: Bookmark,
       },
       {
-        value: "documents_sent",
-        label: "Documents sent",
-        description: "Resume, portfolio, or documents were shared.",
-        icon: FileText,
-      },
-      {
         value: "referral_received",
         label: "Referral received",
         description: "Someone referred you for this role.",
@@ -75,20 +73,8 @@ export const EVENT_SECTIONS: EventSection[] = [
       {
         value: "recruiter_contacted",
         label: "Recruiter contacted",
-        description: "You reached out to a recruiter.",
+        description: "You reached out to or spoke with a recruiter.",
         icon: Mail,
-      },
-      {
-        value: "recruiter_screen_scheduled",
-        label: "Recruiter screen scheduled",
-        description: "A screening call was booked.",
-        icon: PhoneCall,
-      },
-      {
-        value: "recruiter_screen_completed",
-        label: "Recruiter screen completed",
-        description: "The screening call happened.",
-        icon: PhoneCall,
       },
       {
         value: "follow_up_sent",
@@ -98,16 +84,16 @@ export const EVENT_SECTIONS: EventSection[] = [
         followUp: true,
       },
       {
-        value: "assessment_received",
-        label: "Assessment received",
-        description: "A task or assessment was assigned.",
+        value: "hr_requested_documents",
+        label: "HR requested documents",
+        description: "HR asked for documents or details.",
         icon: ClipboardList,
       },
       {
-        value: "assessment_completed",
-        label: "Assessment completed",
-        description: "You submitted the task or assessment.",
-        icon: ClipboardList,
+        value: "documents_submitted",
+        label: "Documents submitted",
+        description: "You sent the requested documents.",
+        icon: FileCheck,
       },
     ],
   },
@@ -120,13 +106,32 @@ export const EVENT_SECTIONS: EventSection[] = [
         label: "Interview scheduled",
         description: "An interview round was booked.",
         icon: CalendarClock,
-        round: true,
       },
       {
         value: "interview_completed",
         label: "Interview completed",
         description: "You attended an interview round.",
         icon: CheckCircle2,
+      },
+      {
+        value: "technical_round",
+        label: "Technical Round",
+        description: "A technical interview round.",
+        icon: ClipboardCheck,
+        round: true,
+      },
+      {
+        value: "managerial_round",
+        label: "Managerial Round",
+        description: "A managerial interview round.",
+        icon: Users,
+        round: true,
+      },
+      {
+        value: "final_round",
+        label: "Final Round",
+        description: "The final interview round.",
+        icon: Flag,
         round: true,
       },
       {
@@ -134,13 +139,6 @@ export const EVENT_SECTIONS: EventSection[] = [
         label: "Moved to next round",
         description: "Progressed to the next interview stage.",
         icon: Flag,
-        round: true,
-      },
-      {
-        value: "interview_cancelled",
-        label: "Interview cancelled",
-        description: "An interview round was cancelled.",
-        icon: XCircle,
         round: true,
       },
     ],
@@ -198,16 +196,28 @@ export const EVENT_SECTIONS: EventSection[] = [
     label: "OTHER",
     types: [
       {
-        value: "note_added",
-        label: "Note added",
-        description: "A general note or update.",
-        icon: MessageSquare,
+        value: "assessment_sent",
+        label: "Assessment sent",
+        description: "A task or assessment was assigned.",
+        icon: ClipboardList,
       },
       {
-        value: "status_changed",
-        label: "Status changed",
-        description: "The application status changed.",
-        icon: Flag,
+        value: "assessment_completed",
+        label: "Assessment completed",
+        description: "You submitted the task or assessment.",
+        icon: ClipboardCheck,
+      },
+      {
+        value: "joining_date_discussed",
+        label: "Joining date discussed",
+        description: "A start date was discussed.",
+        icon: CalendarClock,
+      },
+      {
+        value: "salary_discussed",
+        label: "Salary discussed",
+        description: "Compensation was discussed.",
+        icon: MessageSquare,
       },
       {
         value: "other",
@@ -219,9 +229,70 @@ export const EVENT_SECTIONS: EventSection[] = [
   },
 ];
 
-export const ALL_EVENT_TYPES: EventTypeMeta[] = EVENT_SECTIONS.flatMap(
-  (s) => s.types
-);
+/**
+ * THE single source of truth for Event → Status synchronization.
+ *
+ * When an event type is present here, recording it advances the application to
+ * the mapped status (unless it is already in that status). Event types that are
+ * not listed — follow-ups, assessments, document requests, individual interview
+ * rounds — never change the status on their own. "Moved to next round" maps to
+ * the existing `interview` status so it records progression instead of inventing
+ * a fake "Interview Round 2" status.
+ *
+ * Do NOT duplicate this mapping anywhere else.
+ */
+export const EVENT_STATUS_MAP: Partial<Record<string, JobStatusKey>> = {
+  application_submitted: "applied",
+  application_saved: "saved",
+  recruiter_contacted: "recruiter_screen",
+  interview_scheduled: "interview",
+  interview_completed: "interview",
+  moved_to_next_round: "interview",
+  waiting_for_offer: "waiting_for_offer",
+  offer_received: "offer",
+  offer_accepted: "offer",
+  offer_declined: "offer",
+  rejected: "rejected",
+  withdrawn: "withdrawn",
+};
+
+/** The status an event moves the application to, or undefined if it is neutral. */
+export const eventStatusFor = (
+  value: string | null | undefined
+): JobStatusKey | undefined =>
+  value ? EVENT_STATUS_MAP[value] : undefined;
+
+/**
+ * Event types that are no longer offered in the picker but can still exist in
+ * historical rows. Kept here so the timeline can render them with the right
+ * label and icon (never deleted, never rewritten).
+ */
+const LEGACY_EVENT_TYPES: EventTypeMeta[] = [
+  { value: "status_changed", label: "Status changed", icon: Flag },
+  { value: "note_added", label: "Note added", icon: MessageSquare },
+  { value: "documents_sent", label: "Documents sent", icon: FileText },
+  {
+    value: "recruiter_screen_scheduled",
+    label: "Recruiter screen scheduled",
+    icon: PhoneCall,
+  },
+  {
+    value: "recruiter_screen_completed",
+    label: "Recruiter screen completed",
+    icon: PhoneCall,
+  },
+  {
+    value: "assessment_received",
+    label: "Assessment received",
+    icon: ClipboardList,
+  },
+  { value: "interview_cancelled", label: "Interview cancelled", icon: XCircle },
+];
+
+export const ALL_EVENT_TYPES: EventTypeMeta[] = [
+  ...EVENT_SECTIONS.flatMap((s) => s.types),
+  ...LEGACY_EVENT_TYPES,
+];
 
 const EVENT_TYPE_BY_VALUE = new Map(ALL_EVENT_TYPES.map((e) => [e.value, e]));
 

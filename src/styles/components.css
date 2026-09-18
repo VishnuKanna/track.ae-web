@@ -1045,6 +1045,13 @@ table.data-table tbody tr.clickable {
   text-transform: uppercase;
   color: var(--text-tertiary);
 }
+.tl-type {
+  margin-top: 2px;
+  font-size: var(--fs-xs);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
 .tl-title {
   font-size: var(--fs-md);
   font-weight: 500;
@@ -1164,6 +1171,12 @@ table.data-table tbody tr.clickable {
   cursor: pointer;
 }
 .event-check input { accent-color: var(--orange); }
+.event-status-hint {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+}
+.event-status-hint strong { color: var(--orange); font-weight: 600; }
 .event-sheet-actions { margin-top: 2px; }
 
 @media (max-width: 640px) {

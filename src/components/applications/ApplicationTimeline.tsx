@@ -6,8 +6,7 @@ import { useData } from "@/store/DataContext";
 import { useToast } from "@/store/ToastContext";
 import { formatDateLong, todayISO } from "@/lib/format";
 import { statusByKey } from "@/config/status";
-import type { JobStatusKey } from "@/config/status";
-import { EVENT_SECTIONS, eventTypeMeta } from "@/config/events";
+import { EVENT_SECTIONS, eventTypeMeta, eventStatusFor } from "@/config/events";
 import { Button } from "@/components/ui/Button";
 import { IconButton } from "@/components/ui/IconButton";
 import { Field } from "@/components/ui/Field";
@@ -17,15 +16,6 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Modal } from "@/components/ui/Modal";
 import { cn } from "@/lib/cn";
-
-/** Event types that also offer to move the application status. */
-const STATUS_FOR_EVENT: Partial<Record<string, JobStatusKey>> = {
-  waiting_for_offer: "waiting_for_offer",
-  offer_received: "offer",
-  offer_accepted: "offer",
-  rejected: "rejected",
-  withdrawn: "withdrawn",
-};
 
 interface ApplicationTimelineProps {
   jobId: string;
@@ -38,29 +28,31 @@ export function ApplicationTimeline({ jobId, job }: ApplicationTimelineProps) {
   const events = eventsForJob(jobId);
 
   const [adding, setAdding] = useState(false);
-  const [type, setType] = useState("recruiter_contacted");
+  const [type, setType] = useState("application_submitted");
   const [date, setDate] = useState(todayISO());
   const [time, setTime] = useState("");
   const [round, setRound] = useState("");
   const [title, setTitle] = useState("");
   const [desc, setDesc] = useState("");
   const [logContact, setLogContact] = useState(true);
-  const [applyStatus, setApplyStatus] = useState(false);
   const [busy, setBusy] = useState(false);
   const [deleting, setDeleting] = useState<JobEvent | null>(null);
 
   const meta = useMemo(() => eventTypeMeta(type), [type]);
-  const statusForEvent = STATUS_FOR_EVENT[type];
+  // Status is synchronized automatically from the centralized event map — no
+  // manual checkbox. Shown as a hint so the user knows the status will move.
+  const targetStatus = eventStatusFor(type);
+  const willChangeStatus =
+    !!targetStatus && !!job && job.status !== targetStatus;
 
   const openSheet = () => {
-    setType("recruiter_contacted");
+    setType("application_submitted");
     setDate(todayISO());
     setTime("");
     setRound("");
     setTitle("");
     setDesc("");
     setLogContact(true);
-    setApplyStatus(false);
     setAdding(true);
   };
 
@@ -68,6 +60,8 @@ export function ApplicationTimeline({ jobId, job }: ApplicationTimelineProps) {
     if (busy) return;
     setBusy(true);
     try {
+      // addEvent also advances the status when the event maps to a pipeline
+      // state, so the timeline and the top status can never drift apart.
       await addEvent(jobId, {
         event_type: type,
         event_date: date,
@@ -79,9 +73,6 @@ export function ApplicationTimeline({ jobId, job }: ApplicationTimelineProps) {
 
       if (meta.followUp && logContact) {
         await updateJob(jobId, { last_contact_date: date }, { skipEvents: true });
-      }
-      if (statusForEvent && applyStatus && job?.status !== statusForEvent) {
-        await updateJob(jobId, { status: statusForEvent });
       }
 
       setAdding(false);
@@ -112,12 +103,16 @@ export function ApplicationTimeline({ jobId, job }: ApplicationTimelineProps) {
       ) : (
         <div className="timeline">
           {events.map((ev, i) => {
-            const EventIcon = eventTypeMeta(ev.event_type).icon;
+            const metaForEvent = eventTypeMeta(ev.event_type);
+            const EventIcon = metaForEvent.icon;
             const isInterview = /interview|offer|round/i.test(
               `${ev.event_type} ${ev.title}`
             );
             const hasStatus =
               ev.previous_status != null && ev.new_status != null;
+            const showTypeCaption =
+              ev.event_type !== "status_changed" &&
+              metaForEvent.label !== ev.title;
             return (
               <motion.div
                 className="tl-item"
@@ -141,9 +136,18 @@ export function ApplicationTimeline({ jobId, job }: ApplicationTimelineProps) {
                     <Trash2 size={13} />
                   </IconButton>
                 </div>
+                {showTypeCaption && (
+                  <div className="tl-type">{metaForEvent.label}</div>
+                )}
                 <div className="tl-title">
                   {ev.title}
-                  {ev.round && <span className="tl-round">Round {ev.round}</span>}
+                  {ev.round && (
+                    <span className="tl-round">
+                      {/^\d+$/.test(ev.round.trim())
+                        ? `Round ${ev.round}`
+                        : ev.round}
+                    </span>
+                  )}
                 </div>
                 {hasStatus && (
                   <div className="tl-status-change">
@@ -235,11 +239,11 @@ export function ApplicationTimeline({ jobId, job }: ApplicationTimelineProps) {
             </div>
 
             {meta.round && (
-              <Field label="Round (optional)" hint="e.g. 1, 2, HR, Technical">
+              <Field label="Round (optional)" hint="Which round is this?">
                 <Input
                   value={round}
                   onChange={(e) => setRound(e.target.value)}
-                  placeholder="1"
+                  placeholder="Managerial Round"
                 />
               </Field>
             )}
@@ -270,17 +274,11 @@ export function ApplicationTimeline({ jobId, job }: ApplicationTimelineProps) {
               </label>
             )}
 
-            {statusForEvent && (
-              <label className="event-check">
-                <input
-                  type="checkbox"
-                  checked={applyStatus}
-                  onChange={(e) => setApplyStatus(e.target.checked)}
-                />
-                <span>
-                  Also set status to {statusByKey(statusForEvent).label}
-                </span>
-              </label>
+            {willChangeStatus && targetStatus && (
+              <p className="event-status-hint">
+                Status will change to{" "}
+                <strong>{statusByKey(targetStatus).label}</strong>
+              </p>
             )}
           </div>
 

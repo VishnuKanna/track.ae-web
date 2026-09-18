@@ -125,13 +125,20 @@ export function ApplicationDetail() {
         </div>
         <div className="detail-actions">
           <StatusMenu value={job.status} onChange={changeStatus} />
-          <Button variant="secondary" onClick={() => setEditOpen(true)}>
-            <Pencil size={15} /> <span className="hidden-mobile">Edit</span>
-          </Button>
-          <Button variant="ghost" aria-label="Delete" onClick={() => setShowDelete(true)}>
-            <Trash2 size={15} />
-          </Button>
         </div>
+      </div>
+
+      <div className="detail-action-area">
+        <Button variant="secondary" size="sm" onClick={() => setEditOpen(true)}>
+          <Pencil size={15} /> Edit Application
+        </Button>
+        <button
+          type="button"
+          className="link-danger"
+          onClick={() => setShowDelete(true)}
+        >
+          <Trash2 size={14} /> Delete application
+        </button>
       </div>
 
       <div className="meta-grid">
@@ -257,8 +264,8 @@ export function ApplicationDetail() {
       {showDelete && (
         <ConfirmDialog
           title="Delete this application?"
-          description={`This removes "${job.job_title}" at ${job.company_name} and all its events. This cannot be undone.`}
-          confirmLabel="Delete application"
+          description="This will permanently remove this application, its HR contacts, timeline events, and associated metadata."
+          confirmLabel="Delete Application"
           tone="danger"
           onCancel={() => setShowDelete(false)}
           onConfirm={handleDelete}
