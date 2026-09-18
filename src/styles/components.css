@@ -1447,6 +1447,7 @@ table.data-table tbody tr.clickable {
   box-shadow: var(--shadow-lg);
   padding: 6px;
   list-style: none;
+  overscroll-behavior: contain;
 }
 .dark-theme .status-menu-list {
   background: var(--surface-2);
@@ -1484,6 +1485,24 @@ table.data-table tbody tr.clickable {
 
 .mm-menu-fixed {
   position: fixed;
+}
+
+/* Compact status menu (application cards + table rows) */
+.status-menu-list-sm {
+  width: 244px;
+  max-width: calc(100vw - 16px);
+}
+.status-menu-list-sm .status-menu-item {
+  min-height: 36px;
+  padding: 7px 10px;
+  gap: 8px;
+}
+.status-menu-list-sm .status-menu-semantic {
+  display: none;
+}
+.status-menu-list-sm .status-badge {
+  font-size: var(--fs-xs);
+  padding: 3px 8px;
 }
 
 /* CARD ACTIONS MENU (⋮ on application cards) */
