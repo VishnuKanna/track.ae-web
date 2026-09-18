@@ -419,16 +419,22 @@
   font-size: var(--fs-md);
   font-weight: 500;
   letter-spacing: var(--tracking-tight);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.3;
   color: var(--text);
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 .app-card-company-meta {
   font-size: var(--fs-xs);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.app-card-status {
+  display: flex;
+  align-items: flex-start;
+  margin-top: -6px;
 }
 .app-card-actions {
   display: flex;
@@ -518,6 +524,147 @@
   color: var(--text-secondary);
 }
 .app-cell-followup.is-due { color: #d85a00; font-weight: 500; }
+
+/* DESKTOP TABLE — actions column */
+table.data-table th.app-cell-actions,
+table.data-table td.app-cell-actions {
+  text-align: right;
+  white-space: nowrap;
+}
+table.data-table td.app-cell-actions {
+  padding-left: 4px;
+}
+.app-cell-actions .card-menu-wrap {
+  margin-left: auto;
+}
+/* On narrow desktop/tablet widths the auxiliary Source column drops away so the
+   table stays compact without a horizontal scrollbar. */
+@media (max-width: 1023px) {
+  table.data-table .cell-source {
+    display: none;
+  }
+}
+
+/* MOBILE TABLE VIEW — stacked responsive application rows (<= 768px).
+   The table's own data is reused verbatim; this is purely presentation.
+   Shown only on mobile via its own media query (never an ordering gamble). */
+.mobile-table-rows {
+  display: none;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  min-width: 0;
+  max-width: 100%;
+}
+@media (max-width: 767px) {
+  .mobile-table-rows {
+    display: grid;
+  }
+}
+.mobile-app-row {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+  padding: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  text-align: left;
+  min-width: 0;
+  max-width: 100%;
+  overflow: visible;
+}
+.dark-theme .mobile-app-row {
+  background: var(--surface);
+  border-color: var(--border-dark);
+}
+.mobile-row-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+  max-width: 100%;
+}
+.mobile-row-company-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.mobile-row-company-name {
+  color: var(--text);
+  font-size: var(--fs-md);
+  font-weight: 500;
+  letter-spacing: var(--tracking-tight);
+  line-height: 1.3;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.mobile-row-company-meta {
+  font-size: var(--fs-xs);
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.mobile-row-actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  margin-left: auto;
+}
+.mobile-row-job {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+  font-weight: 500;
+  letter-spacing: var(--tracking-tight);
+  line-height: 1.25;
+  min-width: 0;
+  max-width: 100%;
+  color: var(--text);
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.mobile-row-status {
+  display: flex;
+  align-items: flex-start;
+}
+.mobile-row-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  min-width: 0;
+  max-width: 100%;
+}
+.mobile-meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.mobile-row-view {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  background: none;
+  border-left: 0;
+  border-right: 0;
+  border-bottom: 0;
+  width: 100%;
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  color: var(--orange);
+  cursor: pointer;
+}
 
 /* DETAIL PAGE */
 .detail-company {

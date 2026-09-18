@@ -94,7 +94,6 @@ export function ApplicationCard({ job, index = 0 }: ApplicationCardProps) {
             onClick={(e) => e.stopPropagation()}
             onKeyDown={(e) => e.stopPropagation()}
           >
-            <StatusMenu value={job.status} size="sm" align="right" onChange={changeStatus} />
             <div className="card-menu-wrap">
               <button
                 type="button"
@@ -155,6 +154,14 @@ export function ApplicationCard({ job, index = 0 }: ApplicationCardProps) {
               )}
             </div>
           </div>
+        </div>
+
+        <div
+          className="app-card-status"
+          onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => e.stopPropagation()}
+        >
+          <StatusMenu value={job.status} size="sm" align="left" onChange={changeStatus} />
         </div>
 
         <h3 className="app-card-job">

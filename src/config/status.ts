@@ -39,7 +39,13 @@ export interface StatusConfig {
   stage: number;
 }
 
-/** Ordered exactly as the user sees them in the dropdown and filter chips. */
+/**
+ * Ordered exactly as the user sees them in the dropdown and filter chips.
+ *
+ * Exactly eight canonical statuses. "Withdrawn" is intentionally NOT here: it is
+ * kept only in STATUS_CONFIG / STATUS_ALIASES so legacy rows keep rendering, but
+ * it must never be offered as a pickable status anywhere in the UI.
+ */
 export const STATUS_KEYS: JobStatusKey[] = [
   "saved",
   "applied",
@@ -49,7 +55,6 @@ export const STATUS_KEYS: JobStatusKey[] = [
   "waiting_for_offer",
   "offer",
   "rejected",
-  "withdrawn",
 ];
 
 export const STATUS_CONFIG: Record<JobStatusKey, StatusConfig> = {

@@ -101,13 +101,13 @@ function menuStyle({ anchor, align, width, menuHeight }: StyleOpts): CSSProperti
 
 /**
  * Rectangle the menu hugs. On narrow screens we anchor to the whole application
- * card so the menu opens below the header/card and never hides the company
- * name, logo, location, or job title. Desktop anchors to the status pill.
+ * card / mobile table row so the menu opens below the card and never hides the
+ * company name, logo, location, or job title. Desktop anchors to the status pill.
  */
 function anchorRectFor(target: HTMLElement | null): AnchorRect | null {
   if (!target) return null;
   if (window.innerWidth < 768) {
-    const card = target.closest<HTMLElement>(".app-card-new");
+    const card = target.closest<HTMLElement>(".app-card-new, .mobile-app-row");
     if (card) {
       const r = card.getBoundingClientRect();
       return { top: r.top, right: r.right, bottom: r.bottom, left: r.left };

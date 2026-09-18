@@ -22,7 +22,7 @@ import {
 } from "@/config/status";
 import type { JobStatusKey } from "@/config/status";
 import { PRIORITIES } from "@/config/priority";
-import { validateJobForm, safeErrorMessage } from "@/lib/validation";
+import { validateJobForm, safeErrorMessage, MAX_HR_CONTACTS } from "@/lib/validation";
 import type { JobFormValues } from "@/lib/validation";
 import { todayISO } from "@/lib/format";
 import type { Job } from "@/types/database";
@@ -99,15 +99,11 @@ export function ApplicationForm({
   const {
     createJob,
     updateApplication,
-    updateApplicationStatus,
     deleteJob,
     companies,
     companyById,
     contactsForJob,
     resumesForJob,
-    addHRContact,
-    updateHRContact,
-    deleteHRContact,
     addResume,
   } = useData();
   const toast = useToast();
@@ -258,53 +254,24 @@ export function ApplicationForm({
     setEditingDraft(draft);
   };
 
-  const saveContactDrafts = async (createdJobId?: string) => {
-    const live = drafts.filter((d) => !d.removed && d.name.trim());
-    if (live.length === 0) return;
-    let skipped = 0;
-    for (const d of live) {
-      try {
-        if (d.existingId) {
-          await updateHRContact(d.existingId, {
-            name: d.name,
-            designation: d.designation,
-            email: d.email,
-            phone: d.phone,
-            linkedin_url: d.linkedin_url,
-            notes: d.notes,
-          });
-        } else if (createdJobId) {
-          await addHRContact(createdJobId, {
-            name: d.name,
-            designation: d.designation,
-            email: d.email,
-            phone: d.phone,
-            linkedin_url: d.linkedin_url,
-            notes: d.notes,
-          });
-        }
-      } catch {
-        skipped += 1;
-      }
-    }
-    if (skipped > 0) {
-      toast.info(
-        `${skipped} HR contact${skipped === 1 ? "" : "s"} skipped (check details or 25-contact limit).`
-      );
-    }
-  };
-
-  const deleteRemovedDrafts = async () => {
-    for (const d of drafts) {
-      if (d.removed && d.existingId) {
-        try {
-          await deleteHRContact(d.existingId);
-        } catch {
-          /* best effort */
-        }
-      }
-    }
-  };
+  /**
+   * The complete intended HR-contact set, taken straight from the application
+   * draft. Contacts already persisted (existingId) are always included — even
+   * when their name was cleared — so the reconciliation in the data layer never
+   * silently deletes them. Brand-new drafts must have a name to be saved.
+   */
+  const hrContactsForSave = (): HRContactInput[] =>
+    drafts
+      .filter((d) => !d.removed && (d.existingId || d.name.trim()))
+      .map((d) => ({
+        id: d.existingId,
+        name: d.name,
+        designation: d.designation,
+        email: d.email,
+        phone: d.phone,
+        linkedin_url: d.linkedin_url,
+        notes: d.notes,
+      }));
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -346,24 +313,18 @@ export function ApplicationForm({
         cover_letter_version: values.cover_letter_version || null,
         job_description: values.job_description || null,
         priority: values.priority,
+        hr_contacts: hrContactsForSave(),
       };
 
       if (isEdit && job) {
-        // Persist every edited field except status via the canonical update,
-        // then route a status change through the canonical status function so
-        // exactly one "Status changed" event is recorded (and none when the
-        // status is unchanged).
-        const { status, ...fields } = input;
-        await updateApplication(job.id, fields);
-        if (status !== undefined && status !== job.status) {
-          await updateApplicationStatus(job.id, status as JobStatusKey);
-        }
-        await deleteRemovedDrafts();
-        await saveContactDrafts(job.id);
+        // One logical save: every application field plus the full HR-contact
+        // set is persisted together by updateApplication. Status changes are
+        // routed through the same call, which records exactly one
+        // "Status changed" timeline event when the status differs.
+        await updateApplication(job.id, input);
         toast.success("Application updated.");
       } else {
         const created = await createJob(input);
-        await saveContactDrafts(created.id);
         if (pendingFile) {
           try {
             await addResume(
@@ -379,6 +340,7 @@ export function ApplicationForm({
       }
       onClose();
     } catch (err) {
+      console.error("Application save failed", err);
       toast.error(
         safeErrorMessage(
           err,
@@ -614,10 +576,10 @@ export function ApplicationForm({
           )}
         </Accordion>
 
-        <Accordion summary="HR contacts" rule={`${activeDraftCount}/25`}>
+        <Accordion summary="HR contacts" rule={`${activeDraftCount} / ${MAX_HR_CONTACTS} contacts`}>
           {activeDraftCount === 0 && (
             <p className="faint" style={{ margin: "4px 0 12px", fontSize: 13 }}>
-              Add the recruiters handling this role. Up to 25 contacts.
+              Add the recruiters handling this role. Up to {MAX_HR_CONTACTS} contacts.
             </p>
           )}
           <div className="hr-draft-list">
@@ -645,12 +607,14 @@ export function ApplicationForm({
                 </div>
               ))}
           </div>
-          {activeDraftCount < 25 ? (
+          {activeDraftCount < MAX_HR_CONTACTS ? (
             <Button variant="ghost" size="sm" type="button" onClick={addDraft}>
               <Plus size={15} /> Add HR Contact
             </Button>
           ) : (
-            <p className="faint" style={{ fontSize: 13 }}>Maximum of 25 HR contacts reached.</p>
+            <p className="faint" style={{ fontSize: 13 }}>
+              Maximum of {MAX_HR_CONTACTS} HR contacts reached.
+            </p>
           )}
           {editingDraft && (
             <div className="draft-editor">

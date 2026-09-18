@@ -48,7 +48,7 @@ export function isValidSalary(v?: string | null): boolean {
   return Number.isFinite(n) && n >= 0;
 }
 
-export const MAX_HR_CONTACTS = 25;
+export const MAX_HR_CONTACTS = 10;
 
 export const MAX_RESUME_MB = 10;
 export const ALLOWED_RESUME_TYPES = [

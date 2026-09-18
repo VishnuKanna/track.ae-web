@@ -133,7 +133,7 @@ export function ResumeUploader({ jobId }: ResumeUploaderProps) {
             ? `${resumes.length} resume${resumes.length === 1 ? "" : "s"} attached`
             : "No resume attached yet"}
         </span>
-        <Button variant="secondary" size="sm" onClick={pick} disabled={uploading}>
+        <Button variant="secondary" size="sm" type="button" onClick={pick} disabled={uploading}>
           <Plus size={15} /> Upload
         </Button>
       </div>
@@ -171,6 +171,7 @@ export function ResumeUploader({ jobId }: ResumeUploaderProps) {
           </span>
           <div className="resume-main">
             <button
+              type="button"
               className="resume-name"
               onClick={() => openResume(r)}
               title="Open resume"

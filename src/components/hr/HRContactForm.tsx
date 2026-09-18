@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { FormEvent } from "react";
+import type { KeyboardEvent } from "react";
 import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
 import { Input } from "@/components/ui/Input";
@@ -36,8 +36,7 @@ export function HRContactForm({
   const set = (key: keyof HRContactInput, value: string) =>
     setValues((v) => ({ ...v, [key]: value }));
 
-  const submit = async (e: FormEvent) => {
-    e.preventDefault();
+  const submit = async () => {
     const errs = validateHRContact(values);
     setErrors(errs);
     if (Object.keys(errs).length > 0) return;
@@ -48,8 +47,22 @@ export function HRContactForm({
     }
   };
 
+  // Preserve "press Enter in a text input to save" (previously offered by the
+  // native <form>) without wrapping this editor in a <form> — a nested form
+  // inside the application form is invalid HTML and triggers full page reloads.
+  const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (
+      e.key === "Enter" &&
+      !e.shiftKey &&
+      (e.target as HTMLElement).tagName === "INPUT"
+    ) {
+      e.preventDefault();
+      void submit();
+    }
+  };
+
   return (
-    <form onSubmit={submit} noValidate>
+    <div className="hr-contact-editor" onKeyDown={onKeyDown}>
       <div className="form-grid-2">
         <Field label="Name" required error={errors.name} htmlFor="hr-name">
           <Input
@@ -116,10 +129,15 @@ export function HRContactForm({
         <Button variant="secondary" type="button" onClick={onCancel}>
           Cancel
         </Button>
-        <Button type="submit" loading={busy} loadingLabel="Saving…">
+        <Button
+          type="button"
+          onClick={() => void submit()}
+          loading={busy}
+          loadingLabel="Saving…"
+        >
           {submitLabel}
         </Button>
       </div>
-    </form>
+    </div>
   );
 }

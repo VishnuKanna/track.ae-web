@@ -27,6 +27,7 @@ import {
   logSupabaseError,
   safeErrorMessage,
   withTimeout,
+  MAX_HR_CONTACTS,
 } from "@/lib/validation";
 
 export interface CompanyFields {
@@ -60,6 +61,12 @@ export interface JobInput {
   cover_letter_version: string | null;
   job_description: string | null;
   priority: string;
+  /**
+   * Complete intended HR-contact set for the application. Persisted atomically
+   * with the application record: on create they are inserted, on update the
+   * set is reconciled (delete the missing, update by `id`, insert new).
+   */
+  hr_contacts?: HRContactInput[];
 }
 
 export interface EventInput {
@@ -74,6 +81,7 @@ export interface EventInput {
 }
 
 export type HRContactInput = Partial<{
+  id: string;
   name: string;
   designation: string;
   email: string;
@@ -466,6 +474,117 @@ export function DataProvider({
     []
   );
 
+  /** Normalizes a draft HR contact to DB-ready values (empty → null). */
+  const normalizeContact = useCallback(
+    (c: HRContactInput) => ({
+      name: toNull(c.name),
+      designation: toNull(c.designation),
+      email: toNull(c.email),
+      phone: toNull(c.phone),
+      linkedin_url: toNull(c.linkedin_url),
+      notes: toNull(c.notes),
+    }),
+    []
+  );
+
+  /**
+   * Reconciles a job's HR-contact set atomically with the application save:
+   * deletes contacts no longer wanted, updates contacts that carry an existing
+   * id, and inserts brand-new ones — all in one call so the modal never needs a
+   * second "save HR contacts" round-trip. Contacts that were already inserted
+   * by a previously interrupted attempt are matched by name and updated instead
+   * of duplicated, keeping retries idempotent.
+   */
+  const syncJobContacts = useCallback(
+    async (jobId: string, contacts: HRContactInput[]): Promise<void> => {
+      const uid = requireUser();
+      const sb = getSupabase();
+      if (contacts.length > MAX_HR_CONTACTS) {
+        throw new Error(
+          `A maximum of ${MAX_HR_CONTACTS} HR contacts is allowed per application.`
+        );
+      }
+      let next = hrRef.current;
+
+      const wantedIds = new Set(
+        contacts.map((c) => c.id).filter((id): id is string => Boolean(id))
+      );
+      const removed = next.filter(
+        (c) => c.job_id === jobId && !wantedIds.has(c.id)
+      );
+      if (removed.length > 0) {
+        const { error } = await sb
+          .from("hr_contacts")
+          .delete()
+          .in(
+            "id",
+            removed.map((r) => r.id)
+          )
+          .eq("user_id", uid);
+        if (error) throw error;
+        const removedIds = new Set(removed.map((r) => r.id));
+        next = next.filter((c) => !removedIds.has(c.id));
+      }
+
+      const insertRows: Record<string, unknown>[] = [];
+      for (const c of contacts) {
+        const payload = normalizeContact(c);
+        if (c.id) {
+          const { data, error } = await sb
+            .from("hr_contacts")
+            .update(payload)
+            .eq("id", c.id)
+            .eq("user_id", uid)
+            .select("*")
+            .single();
+          if (error || !data) {
+            throw error || new Error("Could not update an HR contact.");
+          }
+          const updated = data as HRContact;
+          next = next.map((x) => (x.id === updated.id ? updated : x));
+          continue;
+        }
+        const name = (payload.name ?? "").trim().toLowerCase();
+        const matched = next.find(
+          (x) =>
+            x.job_id === jobId &&
+            name !== "" &&
+            (x.name ?? "").trim().toLowerCase() === name
+        );
+        if (matched) {
+          const { data, error } = await sb
+            .from("hr_contacts")
+            .update(payload)
+            .eq("id", matched.id)
+            .eq("user_id", uid)
+            .select("*")
+            .single();
+          if (error || !data) {
+            throw error || new Error("Could not update an HR contact.");
+          }
+          const updated = data as HRContact;
+          next = next.map((x) => (x.id === updated.id ? updated : x));
+        } else {
+          insertRows.push({ user_id: uid, job_id: jobId, ...payload });
+        }
+      }
+
+      if (insertRows.length > 0) {
+        const { data, error } = await sb
+          .from("hr_contacts")
+          .insert(insertRows)
+          .select("*");
+        if (error || !data) {
+          throw error || new Error("Could not add an HR contact.");
+        }
+        next = [...next, ...(data as HRContact[])];
+      }
+
+      setHrContacts(next);
+    },
+    [requireUser, normalizeContact]
+  );
+
   const createJob = useCallback(
     async (input: JobInput): Promise<Job> => {
       const uid = requireUser();
@@ -480,6 +599,40 @@ export function DataProvider({
       }
       const job = data as Job;
       setJobs((prev) => [job, ...prev]);
+
+      try {
+        if (input.hr_contacts && input.hr_contacts.length > 0) {
+          await syncJobContacts(job.id, input.hr_contacts);
+        }
+      } catch (err) {
+        logSupabaseError("POST application failed while saving HR contacts", err);
+        // Roll back the just-created row so a retry never duplicates it.
+        setJobs((prev) => prev.filter((j) => j.id !== job.id));
+        try {
+          await sb
+            .from("hr_contacts")
+            .delete()
+            .eq("job_id", job.id)
+            .eq("user_id", uid);
+        } catch {
+          /* best effort cleanup */
+        }
+        try {
+          await sb
+            .from("jobs")
+            .delete()
+            .eq("id", job.id)
+            .eq("user_id", uid);
+        } catch {
+          /* best effort cleanup */
+        }
+        throw new Error(
+          safeErrorMessage(
+            err,
+            "Application could not be saved — the HR contact(s) could not be saved. Please try again."
+          )
+        );
+      }
 
       if (job.status === "applied") {
         await insertEventRow(job.id, {
@@ -500,7 +653,7 @@ export function DataProvider({
       }
       return job;
     },
-    [requireUser, syncCompany, jobPayload, insertEventRow]
+    [requireUser, syncCompany, jobPayload, syncJobContacts, insertEventRow]
   );
 
   const updateApplication = useCallback(
@@ -543,14 +696,16 @@ export function DataProvider({
 
       setJobs((list) => list.map((j) => (j.id === id ? optimistic : j)));
 
+      const companyChanged =
+        patch.company_name !== undefined &&
+        patch.company_name.trim().toLowerCase() !==
+          prev.company_name.trim().toLowerCase();
+
+      const statusChanged =
+        patch.status !== undefined && patch.status !== prev.status;
+
+      let savedJob: Job | null = null;
       try {
-        const companyChanged =
-          patch.company_name !== undefined &&
-          patch.company_name.trim().toLowerCase() !==
-            prev.company_name.trim().toLowerCase();
-
-        const statusChanged = patch.status !== undefined && patch.status !== prev.status;
-
         let companyId: string | null | undefined;
         if (companyChanged || patch.company !== undefined) {
           try {
@@ -596,58 +751,8 @@ export function DataProvider({
 
         // Trust the persisted database row as the source of truth so the UI
         // immediately reflects exactly what was saved (no reload needed).
-        const savedJob = updated as Job;
-        setJobs((list) => list.map((j) => (j.id === id ? savedJob : j)));
-
-        // Automatic timeline events are best-effort: a failed event insert must
-        // not roll back an application update that already succeeded.
-        try {
-          // A status change (dropdown / edit form) always produces exactly one
-          // generic "Status changed X → Y" event. skipEvents is used by the
-          // add-event flow, which creates its own transition event so it can
-          // timestamp it with the event's date instead of today.
-          if (statusChanged && !opts?.skipEvents) {
-            await insertEventRow(id, {
-              event_type: "status_changed",
-              event_date: todayISO(),
-              title: "Status changed",
-              description: `${statusByKey(prev.status).label} → ${
-                statusByKey(patch.status).label
-              }`,
-              previous_status: prev.status,
-              new_status: patch.status,
-            });
-          }
-
-          if (
-            !opts?.skipEvents &&
-            patch.last_contact_date !== undefined &&
-            patch.last_contact_date !== prev.last_contact_date &&
-            patch.last_contact_date
-          ) {
-            await insertEventRow(id, {
-              event_type: "follow_up_sent",
-              event_date: patch.last_contact_date,
-              title: "Follow-up sent",
-              description: "Marked as contacted.",
-            });
-          }
-        } catch (eventErr) {
-          logSupabaseError(
-            "Application saved but timeline event failed",
-            eventErr
-          );
-        }
-
-        if (companyChanged) {
-          try {
-            await sb.rpc("prune_orphan_companies");
-          } catch {
-            /* best effort cleanup */
-          }
-        }
-
-        return savedJob;
+        savedJob = updated as Job;
+        setJobs((list) => list.map((j) => (j.id === id ? savedJob! : j)));
       } catch (err) {
         logSupabaseError("Failed to update application", err);
         setJobs((list) => list.map((j) => (j.id === id ? prev : j)));
@@ -655,8 +760,81 @@ export function DataProvider({
           safeErrorMessage(err, "Unable to update application. Please try again.")
         );
       }
+
+      // The job row is now committed on the server. Persist the complete
+      // HR-contact set in the same save: on failure the modal stays open so the
+      // user can retry, and the (already saved) job state is left intact so a
+      // retry never re-fires status events or duplicates anything.
+      if (patch.hr_contacts !== undefined) {
+        const prevContacts = hrRef.current.filter((c) => c.job_id === id);
+        try {
+          await syncJobContacts(id, patch.hr_contacts);
+        } catch (err) {
+          logSupabaseError("PUT application failed while saving HR contacts", err);
+          setHrContacts((list) => [
+            ...list.filter((c) => c.job_id !== id),
+            ...prevContacts,
+          ]);
+          throw new Error(
+            safeErrorMessage(
+              err,
+              "Application saved, but the HR contact(s) could not be saved. Please try again."
+            )
+          );
+        }
+      }
+
+      // Automatic timeline events are best-effort: a failed event insert must
+      // not roll back an application update that already succeeded.
+      try {
+        // A status change (dropdown / edit form) always produces exactly one
+        // generic "Status changed X → Y" event. skipEvents is used by the
+        // add-event flow, which creates its own transition event so it can
+        // timestamp it with the event's date instead of today.
+        if (statusChanged && !opts?.skipEvents) {
+          await insertEventRow(id, {
+            event_type: "status_changed",
+            event_date: todayISO(),
+            title: "Status changed",
+            description: `${statusByKey(prev.status).label} → ${
+              statusByKey(patch.status).label
+            }`,
+            previous_status: prev.status,
+            new_status: patch.status,
+          });
+        }
+
+        if (
+          !opts?.skipEvents &&
+          patch.last_contact_date !== undefined &&
+          patch.last_contact_date !== prev.last_contact_date &&
+          patch.last_contact_date
+        ) {
+          await insertEventRow(id, {
+            event_type: "follow_up_sent",
+            event_date: patch.last_contact_date,
+            title: "Follow-up sent",
+            description: "Marked as contacted.",
+          });
+        }
+      } catch (eventErr) {
+        logSupabaseError(
+          "Application saved but timeline event failed",
+          eventErr
+        );
+      }
+
+      if (companyChanged) {
+        try {
+          await sb.rpc("prune_orphan_companies");
+        } catch {
+          /* best effort cleanup */
+        }
+      }
+
+      return savedJob!;
     },
-    [requireUser, syncCompany, jobPayload, insertEventRow]
+    [requireUser, syncCompany, jobPayload, syncJobContacts, insertEventRow]
   );
 
   /**
@@ -815,8 +993,10 @@ export function DataProvider({
       const uid = requireUser();
       const sb = getSupabase();
       const existingCount = hrRef.current.filter((c) => c.job_id === jobId).length;
-      if (existingCount >= 25) {
-        throw new Error("A maximum of 25 HR contacts is allowed per application.");
+      if (existingCount >= MAX_HR_CONTACTS) {
+        throw new Error(
+          `A maximum of ${MAX_HR_CONTACTS} HR contacts is allowed per application.`
+        );
       }
       const { data, error } = await sb
         .from("hr_contacts")

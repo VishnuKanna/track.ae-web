@@ -82,7 +82,7 @@ export function HRContactList({ jobId }: HRContactListProps) {
           title="No HR contacts yet"
           description="Add the recruiters and hiring managers for this role."
           action={
-            <Button size="sm" variant="secondary" onClick={openAdd} disabled={!canAdd}>
+            <Button size="sm" variant="secondary" type="button" onClick={openAdd} disabled={!canAdd}>
               <Plus size={15} /> Add HR Contact
             </Button>
           }
@@ -138,7 +138,7 @@ export function HRContactList({ jobId }: HRContactListProps) {
           ))}
           {canAdd && (
             <div style={{ marginTop: 12 }}>
-              <Button variant="secondary" size="sm" onClick={openAdd}>
+              <Button variant="secondary" size="sm" type="button" onClick={openAdd}>
                 <Plus size={15} /> Add HR Contact
               </Button>
             </div>

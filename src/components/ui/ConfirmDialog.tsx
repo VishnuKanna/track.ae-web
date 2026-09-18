@@ -39,12 +39,13 @@ export function ConfirmDialog({
           {description && <p className="confirm-desc muted">{description}</p>}
           {children}
           <div className="confirm-actions">
-            <Button variant="secondary" size="block" onClick={onCancel}>
+            <Button variant="secondary" size="block" type="button" onClick={onCancel}>
               Cancel
             </Button>
             <Button
               variant={tone === "danger" ? "danger" : "primary"}
               size="block"
+              type="button"
               onClick={onConfirm}
               loading={busy}
               loadingLabel={tone === "danger" ? "Deleting..." : "Saving..."}
