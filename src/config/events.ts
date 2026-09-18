@@ -235,9 +235,8 @@ export const EVENT_SECTIONS: EventSection[] = [
  * When an event type is present here, recording it advances the application to
  * the mapped status (unless it is already in that status). Event types that are
  * not listed — follow-ups, assessments, document requests, individual interview
- * rounds — never change the status on their own. "Moved to next round" maps to
- * the existing `interview` status so it records progression instead of inventing
- * a fake "Interview Round 2" status.
+ * rounds — never change the status on their own. "Moved to next round" is a real
+ * pipeline status now, so its event maps to that status directly.
  *
  * Do NOT duplicate this mapping anywhere else.
  */
@@ -247,7 +246,7 @@ export const EVENT_STATUS_MAP: Partial<Record<string, JobStatusKey>> = {
   recruiter_contacted: "recruiter_screen",
   interview_scheduled: "interview",
   interview_completed: "interview",
-  moved_to_next_round: "interview",
+  moved_to_next_round: "moved_to_next_round",
   waiting_for_offer: "waiting_for_offer",
   offer_received: "offer",
   offer_accepted: "offer",

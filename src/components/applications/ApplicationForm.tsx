@@ -14,7 +14,12 @@ import { ResumeUploader } from "@/components/resume/ResumeUploader";
 import { useData } from "@/store/DataContext";
 import type { HRContactInput } from "@/store/DataContext";
 import { useToast } from "@/store/ToastContext";
-import { STATUS_ORDER, STATUS_CONFIG, EMPLOYMENT_TYPES } from "@/config/status";
+import {
+  STATUS_ORDER,
+  STATUS_CONFIG,
+  EMPLOYMENT_TYPES,
+  normalizeStatus,
+} from "@/config/status";
 import type { JobStatusKey } from "@/config/status";
 import { PRIORITIES } from "@/config/priority";
 import { validateJobForm, safeErrorMessage } from "@/lib/validation";
@@ -124,7 +129,7 @@ export function ApplicationForm({
       employment_type: job.employment_type ?? "full_time",
       source: job.source ?? "",
       application_date: job.application_date ?? todayISO(),
-      status: job.status ?? "applied",
+      status: normalizeStatus(job.status) ?? "applied",
       priority: job.priority ?? "medium",
       next_follow_up_date: job.next_follow_up_date ?? "",
       last_contact_date: job.last_contact_date ?? "",

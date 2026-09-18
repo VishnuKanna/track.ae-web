@@ -5,7 +5,7 @@ import type { Job, JobEvent } from "@/types/database";
 import { useData } from "@/store/DataContext";
 import { useToast } from "@/store/ToastContext";
 import { formatDateLong, todayISO } from "@/lib/format";
-import { statusByKey } from "@/config/status";
+import { statusByKey, statusTransitionLabel } from "@/config/status";
 import { EVENT_SECTIONS, eventTypeMeta, eventStatusFor } from "@/config/events";
 import { Button } from "@/components/ui/Button";
 import { IconButton } from "@/components/ui/IconButton";
@@ -145,7 +145,9 @@ export function ApplicationTimeline({ jobId, job }: ApplicationTimelineProps) {
                   <div className="tl-type">{metaForEvent.label}</div>
                 )}
                 <div className="tl-title">
-                  {ev.title}
+                  {ev.event_type === "status_changed"
+                    ? statusTransitionLabel(ev.new_status)
+                    : ev.title}
                   {ev.round && (
                     <span className="tl-round">
                       {/^\d+$/.test(ev.round.trim())

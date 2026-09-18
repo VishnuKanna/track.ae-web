@@ -2,8 +2,8 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
-import { ChevronDown } from "lucide-react";
-import { STATUS_ORDER, STATUS_CONFIG } from "@/config/status";
+import { Check, ChevronDown } from "lucide-react";
+import { STATUS_ORDER, STATUS_CONFIG, normalizeStatus } from "@/config/status";
 import type { JobStatusKey } from "@/config/status";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { cn } from "@/lib/cn";
@@ -35,7 +35,7 @@ export function StatusMenu({
   const triggerRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
   const [pos, setPos] = useState<CSSProperties>({});
-  const key = (value ?? "applied") as JobStatusKey;
+  const key = (normalizeStatus(value) ?? "applied") as JobStatusKey;
   const cfg = STATUS_CONFIG[key] ?? STATUS_CONFIG.applied;
 
   useLayoutEffect(() => {
@@ -108,9 +108,9 @@ export function StatusMenu({
         <StatusBadge status={key} />
         <ChevronDown size={14} className="status-caret" />
       </button>
-      <AnimatePresence>
-        {open &&
-          createPortal(
+      {createPortal(
+        <AnimatePresence>
+          {open && (
             <motion.ul
               ref={listRef}
               className="status-menu-list mm-menu-fixed"
@@ -124,23 +124,30 @@ export function StatusMenu({
               {STATUS_ORDER.map((s) => (
                 <li key={s.key}>
                   <button
+                    type="button"
                     role="option"
                     aria-selected={s.key === key}
                     className={cn("status-menu-item", s.key === key && "is-selected")}
-                    onClick={() => {
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
                       onChange(s.key);
                       setOpen(false);
                     }}
                   >
                     <StatusBadge status={s.key} />
                     <span className="status-menu-semantic faint">{s.semantic}</span>
+                    {s.key === key && (
+                      <Check size={16} className="status-menu-check" aria-hidden />
+                    )}
                   </button>
                 </li>
               ))}
-            </motion.ul>,
-            document.body
+            </motion.ul>
           )}
-      </AnimatePresence>
+        </AnimatePresence>,
+        document.body
+      )}
     </div>
   );
 }

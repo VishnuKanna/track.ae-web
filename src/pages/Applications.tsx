@@ -22,7 +22,7 @@ import { ApplicationCard } from "@/components/applications/ApplicationCard";
 import { ApplicationTable } from "@/components/applications/ApplicationTable";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import type { JobStatusKey } from "@/config/status";
-import { STATUS_CONFIG, STATUS_KEYS, statusByKey } from "@/config/status";
+import { ACTIVE_STATUSES, STATUS_CONFIG, STATUS_KEYS } from "@/config/status";
 import { useToast } from "@/store/ToastContext";
 import { cn } from "@/lib/cn";
 import type { HRContact } from "@/types/database";
@@ -101,7 +101,7 @@ export function Applications() {
   }, [jobs, query, statusFilter, companyFilter, sortKey, sortDir, contactsByJob]);
 
   const next = useMemo(
-    () => filtered.find((j) => statusByKey(j.status).stage < 5) ?? null,
+    () => filtered.find((j) => ACTIVE_STATUSES.includes(j.status as JobStatusKey)) ?? null,
     [filtered]
   );
 

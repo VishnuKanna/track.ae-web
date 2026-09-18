@@ -1,6 +1,6 @@
 import type { Job, JobEvent } from "@/types/database";
 import type { JobStatusKey } from "@/config/status";
-import { ACTIVE_STATUSES } from "@/config/status";
+import { ACTIVE_STATUSES, STATUS_KEYS, STATUS_CONFIG } from "@/config/status";
 import { isCurrentMonth } from "@/lib/format";
 import { todayISO, daysUntil } from "@/lib/format";
 
@@ -19,6 +19,7 @@ export interface PipelineMetrics {
 }
 
 export interface StageCounts {
+  key: JobStatusKey;
   label: string;
   value: number;
 }
@@ -29,7 +30,13 @@ export function isSubmitted(job: Job): boolean {
 
 export function hasReachedInterview(job: Job, events: JobEvent[]): boolean {
   const status = job.status as JobStatusKey;
-  if (status === "interview" || status === "waiting_for_offer" || status === "offer") return true;
+  if (
+    status === "interview" ||
+    status === "moved_to_next_round" ||
+    status === "waiting_for_offer" ||
+    status === "offer"
+  )
+    return true;
   return events.some(
     (e) =>
       e.job_id === job.id &&
@@ -47,7 +54,14 @@ export function hasReachedOffer(job: Job, events: JobEvent[]): boolean {
 export function hasProgressed(job: Job, events: JobEvent[]): boolean {
   if (!isSubmitted(job)) return false;
   const status = job.status as JobStatusKey;
-  if (status === "recruiter_screen" || status === "interview" || status === "waiting_for_offer" || status === "offer") return true;
+  if (
+    status === "recruiter_screen" ||
+    status === "interview" ||
+    status === "moved_to_next_round" ||
+    status === "waiting_for_offer" ||
+    status === "offer"
+  )
+    return true;
   if (status === "rejected" || status === "withdrawn") {
     // A rejected application may have progressed; use its events/status history.
     return events.some((e) => e.job_id === job.id && e.event_type !== "application_submitted") ||
@@ -92,6 +106,7 @@ export function computeMetrics(
     interviews: jobs.filter(
       (j) =>
         j.status === "interview" ||
+        j.status === "moved_to_next_round" ||
         j.status === "waiting_for_offer" ||
         j.status === "offer"
     ).length,
@@ -109,18 +124,9 @@ export function computeMetrics(
 }
 
 export function statusBreakdown(jobs: Job[]): StageCounts[] {
-  const order: JobStatusKey[] = [
-    "saved",
-    "applied",
-    "recruiter_screen",
-    "interview",
-    "waiting_for_offer",
-    "offer",
-    "rejected",
-    "withdrawn",
-  ];
-  return order.map((key) => ({
-    label: key.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase()),
+  return STATUS_KEYS.map((key) => ({
+    key,
+    label: STATUS_CONFIG[key].label,
     value: jobs.filter((j) => j.status === key).length,
   }));
 }

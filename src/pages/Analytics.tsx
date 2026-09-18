@@ -12,7 +12,6 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui/Button";
 import { useUIState } from "@/store/UIStateContext";
 import { STATUS_CONFIG } from "@/config/status";
-import type { JobStatusKey } from "@/config/status";
 
 const pct = (v: number | null) => (v === null ? null : Math.round(v * 100));
 
@@ -31,12 +30,7 @@ export function Analytics() {
       statusBreakdown(jobs).map((s) => ({
         label: s.label,
         value: s.value,
-        color:
-          STATUS_CONFIG[
-            s.label.toLowerCase().replace(/ /g, "_") as JobStatusKey
-          ]?.tone === "orange"
-            ? "orange"
-            : undefined,
+        color: STATUS_CONFIG[s.key].tone === "orange" ? "orange" : undefined,
       })),
     [jobs]
   );
