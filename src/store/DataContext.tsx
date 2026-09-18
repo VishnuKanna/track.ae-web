@@ -19,7 +19,13 @@ import type {
 } from "@/types/database";
 import { statusByKey } from "@/config/status";
 import { todayISO } from "@/lib/format";
-import { formatSupabaseError, safeErrorMessage, withTimeout } from "@/lib/validation";
+import {
+  formatSupabaseError,
+  isMissingColumnError,
+  logSupabaseError,
+  safeErrorMessage,
+  withTimeout,
+} from "@/lib/validation";
 
 export interface CompanyFields {
   website?: string | null;
@@ -282,7 +288,10 @@ export function DataProvider({
         "find_or_create_company",
         { p_name: clean }
       );
-      if (rpcErr) throw new Error("Could not save company.");
+      if (rpcErr) {
+        logSupabaseError("find_or_create_company RPC failed", rpcErr);
+        throw new Error("Could not save company.");
+      }
       companyId = (rpcData as string) || null;
       if (!companyId) throw new Error("Could not save company.");
 
@@ -318,7 +327,10 @@ export function DataProvider({
             .update(merged)
             .eq("id", companyId)
             .eq("user_id", uid);
-          if (error) throw new Error("Could not update company.");
+          if (error) {
+            logSupabaseError("companies update failed", error);
+            throw new Error("Could not update company.");
+          }
         }
       }
 
@@ -355,25 +367,63 @@ export function DataProvider({
     async (jobId: string, input: EventInput): Promise<JobEvent> => {
       const uid = requireUser();
       const sb = getSupabase();
-      const { data, error } = await sb
+
+      const fullPayload = {
+        user_id: uid,
+        job_id: jobId,
+        event_type: input.event_type,
+        event_date: input.event_date,
+        event_time: input.event_time ?? null,
+        title: input.title,
+        description: input.description ?? null,
+        round: input.round ?? null,
+        previous_status: input.previous_status ?? null,
+        new_status: input.new_status ?? null,
+      };
+
+      let result = await sb
         .from("job_events")
-        .insert({
-          user_id: uid,
-          job_id: jobId,
-          event_type: input.event_type,
-          event_date: input.event_date,
-          event_time: input.event_time ?? null,
-          title: input.title,
-          description: input.description ?? null,
-          round: input.round ?? null,
-          previous_status: input.previous_status ?? null,
-          new_status: input.new_status ?? null,
-        })
+        .insert(fullPayload)
         .select("*")
         .single();
-      if (error || !data) throw new Error("Unable to add event. Please try again.");
-      setEvents((prev) => [data as JobEvent, ...prev]);
-      return data as JobEvent;
+
+      // The detail columns (event_time/round/previous_status/new_status) only
+      // exist once migration 0003 has been applied. If the live database is
+      // behind, fall back to the base columns so adding events still works,
+      // and log an actionable warning instead of silently swallowing it.
+      if (result.error && isMissingColumnError(result.error)) {
+        console.warn(
+          "[Track.AE] job_events is missing detail columns. Apply migration " +
+            "supabase/migrations/0003_job_events_details.sql to persist " +
+            "round/status detail. Falling back to base columns for now."
+        );
+        logSupabaseError("job_events insert (full payload)", result.error);
+        result = await sb
+          .from("job_events")
+          .insert({
+            user_id: fullPayload.user_id,
+            job_id: fullPayload.job_id,
+            event_type: fullPayload.event_type,
+            event_date: fullPayload.event_date,
+            title: fullPayload.title,
+            description: fullPayload.description,
+          })
+          .select("*")
+          .single();
+      }
+
+      const { data, error } = result;
+      if (error || !data) {
+        // Log the real Supabase error (code/message/details/hint) so the root
+        // cause is visible in development, then surface a clean user message.
+        logSupabaseError("Failed to add event", error);
+        throw new Error(
+          safeErrorMessage(error, "Unable to add event. Please try again.")
+        );
+      }
+      const event = data as JobEvent;
+      setEvents((prev) => [event, ...prev]);
+      return event;
     },
     [requireUser]
   );
@@ -495,39 +545,86 @@ export function DataProvider({
 
         let companyId: string | null | undefined;
         if (companyChanged || patch.company !== undefined) {
-          companyId = await syncCompany(
-            patch.company_name ?? prev.company_name,
-            patch.company
-          );
-        }
-        if (companyChanged) {
-          optimistic.company_id = companyId ?? null;
-          setJobs((list) =>
-            list.map((j) => (j.id === id ? { ...j, company_id: companyId ?? null } : j))
-          );
-        }
-
-        const payload = jobPayload(patch, companyChanged || patch.company !== undefined ? companyId : undefined);
-        const { error } = await sb.from("jobs").update(payload).eq("id", id).eq("user_id", uid);
-        if (error) throw error;
-
-        // Status changes always produce a timeline event, even when the caller
-        // passes skipEvents (which only suppresses incidental follow-up noise).
-        if (statusChanged) {
-          const fromLabel = statusByKey(prev.status).label;
-          const toLabel = statusByKey(patch.status).label;
-          await insertEventRow(id, {
-            event_type: "status_changed",
-            event_date: todayISO(),
-            title: `Status changed ${fromLabel} → ${toLabel}`,
-            description: `${prev.job_title} moved from ${fromLabel} to ${toLabel}.`,
-            previous_status: prev.status,
-            new_status: patch.status,
-          });
+          try {
+            companyId = await syncCompany(
+              patch.company_name ?? prev.company_name,
+              patch.company
+            );
+          } catch (err) {
+            // Company metadata is secondary: a company sync failure must never
+            // block persisting the application fields the user actually edited.
+            logSupabaseError(
+              "Failed to sync company during application update",
+              err
+            );
+            companyId = prev.company_id ?? null;
+          }
         }
 
-        if (!opts?.skipEvents) {
+        const payload = jobPayload(
+          patch,
+          companyChanged || patch.company !== undefined ? companyId : undefined
+        );
+
+        // .select().single() makes a silent "0 rows updated" (wrong id, mismatched
+        // user, or RLS) impossible — it becomes a visible error instead of the UI
+        // pretending the save worked.
+        const { data: updated, error } = await sb
+          .from("jobs")
+          .update(payload)
+          .eq("id", id)
+          .eq("user_id", uid)
+          .select("*")
+          .single();
+
+        if (error || !updated) {
+          if (!error && !updated) {
+            throw new Error(
+              "The application could not be updated — no matching record was found for this account."
+            );
+          }
+          throw error;
+        }
+
+        // Trust the persisted database row as the source of truth so the UI
+        // immediately reflects exactly what was saved (no reload needed).
+        const savedJob = updated as Job;
+        setJobs((list) => list.map((j) => (j.id === id ? savedJob : j)));
+
+        // Automatic timeline events are best-effort: a failed event insert must
+        // not roll back an application update that already succeeded.
+        try {
+          // Status changes always produce a timeline event, even when the caller
+          // passes skipEvents (which only suppresses incidental follow-up noise).
+          if (statusChanged) {
+            const fromLabel = statusByKey(prev.status).label;
+            const toLabel = statusByKey(patch.status).label;
+            // Milestone transitions get a semantic first-class event; every
+            // other transition is a generic "Status changed X → Y". Either way
+            // previous/new status are stored so the timeline can show the move.
+            const semantic =
+              patch.status === "offer"
+                ? { type: "offer_received", title: "Offer received" }
+                : patch.status === "rejected"
+                ? { type: "rejected", title: "Rejected" }
+                : patch.status === "withdrawn"
+                ? { type: "withdrawn", title: "Withdrawn" }
+                : {
+                    type: "status_changed",
+                    title: `Status changed ${fromLabel} → ${toLabel}`,
+                  };
+            await insertEventRow(id, {
+              event_type: semantic.type,
+              event_date: todayISO(),
+              title: semantic.title,
+              description: `${prev.job_title} moved from ${fromLabel} to ${toLabel}.`,
+              previous_status: prev.status,
+              new_status: patch.status,
+            });
+          }
+
           if (
+            !opts?.skipEvents &&
             patch.last_contact_date !== undefined &&
             patch.last_contact_date !== prev.last_contact_date &&
             patch.last_contact_date
@@ -539,16 +636,22 @@ export function DataProvider({
               description: "Marked as contacted.",
             });
           }
+        } catch (eventErr) {
+          logSupabaseError(
+            "Application saved but timeline event failed",
+            eventErr
+          );
+        }
 
-          if (companyChanged) {
-            try {
-              await sb.rpc("prune_orphan_companies");
-            } catch {
-              /* best effort cleanup */
-            }
+        if (companyChanged) {
+          try {
+            await sb.rpc("prune_orphan_companies");
+          } catch {
+            /* best effort cleanup */
           }
         }
       } catch (err) {
+        logSupabaseError("Failed to update application", err);
         setJobs((list) => list.map((j) => (j.id === id ? prev : j)));
         throw new Error(
           safeErrorMessage(err, "Unable to update application. Please try again.")
@@ -639,7 +742,17 @@ export function DataProvider({
           .eq("user_id", uid);
         if (error) throw error;
         if (patch.name !== undefined && patch.name.trim() !== prev.name) {
-          await sb.from("jobs").update({ company_name: patch.name.trim() }).eq("company_id", id).eq("user_id", uid);
+          const { error: jobsError } = await sb
+            .from("jobs")
+            .update({ company_name: patch.name.trim() })
+            .eq("company_id", id)
+            .eq("user_id", uid);
+          if (jobsError) {
+            logSupabaseError(
+              "Failed to cascade company name to applications",
+              jobsError
+            );
+          }
           setJobs((list) =>
             list.map((j) =>
               j.company_id === id ? { ...j, company_name: patch.name!.trim() } : j
@@ -647,6 +760,7 @@ export function DataProvider({
           );
         }
       } catch (err) {
+        logSupabaseError("Failed to update company", err);
         setCompanies((list) => list.map((c) => (c.id === id ? prev : c)));
         throw new Error(safeErrorMessage(err, "Could not update company."));
       }
@@ -703,7 +817,12 @@ export function DataProvider({
         })
         .select("*")
         .single();
-      if (error || !data) throw new Error("Unable to add contact. Please try again.");
+      if (error || !data) {
+        logSupabaseError("Failed to add HR contact", error);
+        throw new Error(
+          safeErrorMessage(error, "Unable to add contact. Please try again.")
+        );
+      }
       const contact = data as HRContact;
       setHrContacts((prev) => [...prev, contact]);
       return contact;
@@ -728,13 +847,26 @@ export function DataProvider({
         if (patch.phone !== undefined) payload.phone = toNull(patch.phone);
         if (patch.linkedin_url !== undefined) payload.linkedin_url = toNull(patch.linkedin_url);
         if (patch.notes !== undefined) payload.notes = toNull(patch.notes);
-        const { error } = await sb
+        const { data: updated, error } = await sb
           .from("hr_contacts")
           .update(payload)
           .eq("id", id)
-          .eq("user_id", uid);
-        if (error) throw error;
+          .eq("user_id", uid)
+          .select("*")
+          .single();
+        if (error || !updated) {
+          if (!error && !updated) {
+            throw new Error(
+              "The contact could not be updated — no matching record was found."
+            );
+          }
+          throw error;
+        }
+        setHrContacts((list) =>
+          list.map((c) => (c.id === id ? (updated as HRContact) : c))
+        );
       } catch (err) {
+        logSupabaseError("Failed to update HR contact", err);
         setHrContacts((list) => list.map((c) => (c.id === id ? prev : c)));
         throw new Error(
           safeErrorMessage(err, "Unable to update contact. Please try again.")
@@ -758,8 +890,11 @@ export function DataProvider({
           .eq("user_id", uid);
         if (error) throw error;
       } catch (err) {
+        logSupabaseError("Failed to delete HR contact", err);
         if (prev) setHrContacts((list) => [...list, prev]);
-        throw new Error(safeErrorMessage(err, "Could not delete HR contact."));
+        throw new Error(
+          safeErrorMessage(err, "Unable to delete contact. Please try again.")
+        );
       }
     },
     [requireUser]
@@ -846,7 +981,10 @@ export function DataProvider({
           })
           .eq("id", id)
           .eq("user_id", uid);
-        if (error) throw error;
+        if (error) {
+          logSupabaseError("Failed to update resume", error);
+          throw error;
+        }
       } catch (err) {
         setResumes((list) => list.map((r) => (r.id === id ? prev : r)));
         throw new Error(safeErrorMessage(err, "Could not update resume."));

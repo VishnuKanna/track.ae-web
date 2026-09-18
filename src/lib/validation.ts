@@ -166,6 +166,41 @@ export function formatSupabaseError(
   return safeErrorMessage(err, fallback);
 }
 
+/**
+ * Logs the real Supabase/PostgREST error shape during development without
+ * leaking credentials. Only the diagnostic fields are printed (no auth tokens).
+ */
+export function logSupabaseError(context: string, error: unknown): void {
+  if (!error || typeof error !== "object") {
+    console.error(`[Track.AE] ${context}`, error);
+    return;
+  }
+  const e = error as Record<string, unknown>;
+  console.error(`[Track.AE] ${context}`, {
+    code: e.code,
+    message: e.message,
+    details: e.details,
+    hint: e.hint,
+  });
+}
+
+/**
+ * True when PostgREST rejects a write because a column does not exist in the
+ * live schema cache (typically a migration that has not been applied yet).
+ */
+export function isMissingColumnError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const e = error as Record<string, unknown>;
+  const code = typeof e.code === "string" ? e.code : "";
+  const message = typeof e.message === "string" ? e.message : "";
+  return (
+    code === "PGRST204" ||
+    /could not find the .*column|column .* does not exist|schema cache/i.test(
+      message
+    )
+  );
+}
+
 /** Rejects if a promise does not settle within `ms`, so a hung request can
  *  never leave the UI stuck on an infinite spinner. */
 export function withTimeout<T>(
