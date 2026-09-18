@@ -18,6 +18,8 @@ import type {
   Profile,
 } from "@/types/database";
 import { eventStatusFor } from "@/config/events";
+import { statusByKey } from "@/config/status";
+import type { JobStatusKey } from "@/config/status";
 import { todayISO } from "@/lib/format";
 import {
   formatSupabaseError,
@@ -95,11 +97,12 @@ export interface DataContextValue {
   refresh: () => Promise<void>;
 
   createJob: (input: JobInput) => Promise<Job>;
-  updateJob: (
+  updateApplication: (
     id: string,
     patch: Partial<JobInput>,
     opts?: { skipEvents?: boolean }
-  ) => Promise<void>;
+  ) => Promise<Job>;
+  updateApplicationStatus: (id: string, status: JobStatusKey) => Promise<void>;
   deleteJob: (id: string) => Promise<void>;
 
   createCompany: (name: string, fields?: CompanyFields) => Promise<Company>;
@@ -124,7 +127,10 @@ export interface DataContextValue {
   deleteResume: (id: string) => Promise<void>;
   updateResume: (id: string, patch: Partial<Resume>) => Promise<void>;
 
-  addEvent: (jobId: string, input: EventInput) => Promise<JobEvent>;
+  addApplicationEvent: (
+    jobId: string,
+    input: EventInput
+  ) => Promise<JobEvent>;
   deleteEvent: (id: string) => Promise<void>;
 
   contactsForJob: (jobId: string) => HRContact[];
@@ -497,16 +503,18 @@ export function DataProvider({
     [requireUser, syncCompany, jobPayload, insertEventRow]
   );
 
-  const updateJob = useCallback(
+  const updateApplication = useCallback(
     async (
       id: string,
       patch: Partial<JobInput>,
       opts?: { skipEvents?: boolean }
-    ) => {
+    ): Promise<Job> => {
       const uid = requireUser();
       const sb = getSupabase();
       const prev = jobsRef.current.find((j) => j.id === id);
-      if (!prev) return;
+      if (!prev) {
+        throw new Error("Application not found.");
+      }
 
       const optimistic: Job = { ...prev } as Job;
       if (patch.job_title !== undefined) optimistic.job_title = patch.job_title.trim() || prev.job_title;
@@ -603,6 +611,9 @@ export function DataProvider({
               event_type: "status_changed",
               event_date: todayISO(),
               title: "Status changed",
+              description: `${statusByKey(prev.status).label} → ${
+                statusByKey(patch.status).label
+              }`,
               previous_status: prev.status,
               new_status: patch.status,
             });
@@ -635,6 +646,8 @@ export function DataProvider({
             /* best effort cleanup */
           }
         }
+
+        return savedJob;
       } catch (err) {
         logSupabaseError("Failed to update application", err);
         setJobs((list) => list.map((j) => (j.id === id ? prev : j)));
@@ -644,6 +657,23 @@ export function DataProvider({
       }
     },
     [requireUser, syncCompany, jobPayload, insertEventRow]
+  );
+
+  /**
+   * Canonical status change: every quick status control (card dropdown, table
+   * dropdown, detail dropdown) calls this and nothing else. It is a no-op when
+   * the status is unchanged (so it never creates a duplicate timeline event),
+   * and otherwise delegates to updateApplication, which owns both the PATCH and
+   * the single "Status changed" event.
+   */
+  const updateApplicationStatus = useCallback(
+    async (id: string, status: JobStatusKey): Promise<void> => {
+      const current = jobsRef.current.find((j) => j.id === id);
+      if (!current) return;
+      if (current.status === status) return;
+      await updateApplication(id, { status });
+    },
+    [updateApplication]
   );
 
   const deleteJob = useCallback(
@@ -978,7 +1008,7 @@ export function DataProvider({
     [requireUser]
   );
 
-  const addEvent = useCallback(
+  const addApplicationEvent = useCallback(
     async (jobId: string, input: EventInput): Promise<JobEvent> => {
       const event = await insertEventRow(jobId, input);
 
@@ -991,12 +1021,15 @@ export function DataProvider({
         try {
           // skipEvents: the transition event is created here so it can carry
           // the event's own date, keeping the timeline in chronological order.
-          await updateJob(jobId, { status: target }, { skipEvents: true });
+          await updateApplication(jobId, { status: target }, { skipEvents: true });
           await insertEventRow(jobId, {
             event_type: "status_changed",
             event_date: input.event_date,
             event_time: input.event_time ?? null,
             title: "Status changed",
+            description: `${statusByKey(current.status).label} → ${
+              statusByKey(target).label
+            }`,
             previous_status: current.status,
             new_status: target,
           });
@@ -1011,7 +1044,7 @@ export function DataProvider({
       }
       return event;
     },
-    [insertEventRow, updateJob]
+    [insertEventRow, updateApplication]
   );
 
   const deleteEvent = useCallback(
@@ -1071,7 +1104,8 @@ export function DataProvider({
       events,
       refresh,
       createJob,
-      updateJob,
+      updateApplication,
+      updateApplicationStatus,
       deleteJob,
       createCompany,
       updateCompany,
@@ -1082,7 +1116,7 @@ export function DataProvider({
       addResume,
       deleteResume,
       updateResume,
-      addEvent,
+      addApplicationEvent,
       deleteEvent,
       contactsForJob,
       resumesForJob,
@@ -1102,7 +1136,8 @@ export function DataProvider({
       events,
       refresh,
       createJob,
-      updateJob,
+      updateApplication,
+      updateApplicationStatus,
       deleteJob,
       createCompany,
       updateCompany,
@@ -1113,7 +1148,7 @@ export function DataProvider({
       addResume,
       deleteResume,
       updateResume,
-      addEvent,
+      addApplicationEvent,
       deleteEvent,
       contactsForJob,
       resumesForJob,

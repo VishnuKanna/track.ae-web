@@ -17,17 +17,17 @@ interface FollowUpCardProps {
 }
 
 export function FollowUpCard({ job, label, tone, onMarked }: FollowUpCardProps) {
-  const { updateJob, addEvent } = useData();
+  const { updateApplication, addApplicationEvent } = useData();
   const toast = useToast();
 
   const markContacted = async () => {
     try {
-      await updateJob(
+      await updateApplication(
         job.id,
         { last_contact_date: todayISO(), next_follow_up_date: null },
         { skipEvents: true }
       );
-      await addEvent(job.id, {
+      await addApplicationEvent(job.id, {
         event_type: "follow_up_sent",
         event_date: todayISO(),
         title: "Follow-up sent",

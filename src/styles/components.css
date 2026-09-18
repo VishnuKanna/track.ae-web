@@ -390,6 +390,11 @@
   flex-direction: column;
   overflow: hidden;
 }
+.dark-theme .modal {
+  background: var(--surface-3);
+  color: var(--text-on-dark);
+  border: 1px solid var(--border-dark);
+}
 .modal-head {
   display: flex;
   align-items: center;
@@ -397,6 +402,10 @@
   padding: 18px 22px;
   border-bottom: 1px solid var(--border);
   flex: none;
+}
+.dark-theme .modal-head,
+.dark-theme .modal-foot {
+  border-color: var(--border-dark);
 }
 .modal-title {
   font-size: var(--fs-lg);
@@ -1132,8 +1141,12 @@ table.data-table tbody tr.clickable {
 .dark-theme .event-type-row {
   border-color: var(--border-dark);
   color: var(--white);
+  background: rgba(255, 255, 255, 0.03);
 }
-.event-type-row:hover { border-color: var(--border-strong); }
+.event-type-row:hover {
+  border-color: var(--border-strong);
+  background: rgba(255, 255, 255, 0.06);
+}
 .event-type-row.is-selected {
   border-color: var(--orange);
   background: var(--orange-soft);
@@ -1144,6 +1157,8 @@ table.data-table tbody tr.clickable {
   margin-top: 1px;
 }
 .event-type-row.is-selected .event-type-icon { color: var(--orange); }
+.event-type-row.is-selected .event-type-name { color: var(--orange); }
+.event-type-row.is-selected .event-type-desc { color: var(--text-secondary); }
 .event-type-text {
   display: flex;
   flex-direction: column;

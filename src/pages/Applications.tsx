@@ -30,7 +30,8 @@ import type { HRContact } from "@/types/database";
 type AppView = "cards" | "table";
 
 export function Applications() {
-  const { jobs, hrContacts, loading, hydrated, updateJob } = useData();
+  const { jobs, hrContacts, loading, hydrated, updateApplicationStatus } =
+    useData();
   const { openAdd } = useUIState();
   const toast = useToast();
   const [params, setParams] = useSearchParams();
@@ -110,8 +111,9 @@ export function Applications() {
   ) => {
     if (job.status === status) return;
     try {
-      // updateJob writes the status_changed event; adding another would duplicate it.
-      await updateJob(job.id, { status });
+      // Canonical status path: no-op when unchanged, otherwise one PATCH plus
+      // the single status_changed event — never a duplicate.
+      await updateApplicationStatus(job.id, status);
     } catch (err) {
       toast.error(
         err instanceof Error ? err.message : "Unable to update application. Please try again."

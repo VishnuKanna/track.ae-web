@@ -23,7 +23,7 @@ interface ApplicationCardProps {
 export function ApplicationCard({ job, index = 0 }: ApplicationCardProps) {
   const navigate = useNavigate();
   const toast = useToast();
-  const { updateJob, deleteJob } = useData();
+  const { updateApplicationStatus, deleteJob } = useData();
   const [menuOpen, setMenuOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -36,9 +36,9 @@ export function ApplicationCard({ job, index = 0 }: ApplicationCardProps) {
   const changeStatus = async (status: JobStatusKey) => {
     if (status === job.status) return;
     try {
-      // updateJob records the status_changed timeline event itself — do not add
-      // a second one here or every change would appear twice in the timeline.
-      await updateJob(job.id, { status });
+      // Canonical status path records the status_changed event itself — do not
+      // add a second one or every change appears twice in the timeline.
+      await updateApplicationStatus(job.id, status);
     } catch (err) {
       toast.error(
         err instanceof Error ? err.message : "Unable to update application. Please try again."

@@ -15,6 +15,7 @@ import { useData } from "@/store/DataContext";
 import type { HRContactInput } from "@/store/DataContext";
 import { useToast } from "@/store/ToastContext";
 import { STATUS_ORDER, STATUS_CONFIG, EMPLOYMENT_TYPES } from "@/config/status";
+import type { JobStatusKey } from "@/config/status";
 import { PRIORITIES } from "@/config/priority";
 import { validateJobForm, safeErrorMessage } from "@/lib/validation";
 import type { JobFormValues } from "@/lib/validation";
@@ -92,7 +93,8 @@ export function ApplicationForm({
 }: ApplicationFormProps) {
   const {
     createJob,
-    updateJob,
+    updateApplication,
+    updateApplicationStatus,
     deleteJob,
     companies,
     companyById,
@@ -342,9 +344,15 @@ export function ApplicationForm({
       };
 
       if (isEdit && job) {
-        // No skipEvents: if the user changed the status in the form, the
-        // timeline records exactly one "Status changed X → Y" event.
-        await updateJob(job.id, input);
+        // Persist every edited field except status via the canonical update,
+        // then route a status change through the canonical status function so
+        // exactly one "Status changed" event is recorded (and none when the
+        // status is unchanged).
+        const { status, ...fields } = input;
+        await updateApplication(job.id, fields);
+        if (status !== undefined && status !== job.status) {
+          await updateApplicationStatus(job.id, status as JobStatusKey);
+        }
         await deleteRemovedDrafts();
         await saveContactDrafts(job.id);
         toast.success("Application updated.");

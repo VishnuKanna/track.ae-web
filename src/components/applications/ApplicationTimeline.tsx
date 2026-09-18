@@ -23,7 +23,8 @@ interface ApplicationTimelineProps {
 }
 
 export function ApplicationTimeline({ jobId, job }: ApplicationTimelineProps) {
-  const { eventsForJob, addEvent, deleteEvent, updateJob } = useData();
+  const { eventsForJob, addApplicationEvent, deleteEvent, updateApplication } =
+    useData();
   const toast = useToast();
   const events = eventsForJob(jobId);
 
@@ -60,9 +61,9 @@ export function ApplicationTimeline({ jobId, job }: ApplicationTimelineProps) {
     if (busy) return;
     setBusy(true);
     try {
-      // addEvent also advances the status when the event maps to a pipeline
-      // state, so the timeline and the top status can never drift apart.
-      await addEvent(jobId, {
+      // addApplicationEvent also advances the status when the event maps to a
+      // pipeline state, so the timeline and the top status can never drift apart.
+      await addApplicationEvent(jobId, {
         event_type: type,
         event_date: date,
         event_time: time.trim() || null,
@@ -72,7 +73,11 @@ export function ApplicationTimeline({ jobId, job }: ApplicationTimelineProps) {
       });
 
       if (meta.followUp && logContact) {
-        await updateJob(jobId, { last_contact_date: date }, { skipEvents: true });
+        await updateApplication(
+          jobId,
+          { last_contact_date: date },
+          { skipEvents: true }
+        );
       }
 
       setAdding(false);
@@ -156,7 +161,9 @@ export function ApplicationTimeline({ jobId, job }: ApplicationTimelineProps) {
                     {statusByKey(ev.new_status).label}
                   </div>
                 )}
-                {ev.description && <div className="tl-desc">{ev.description}</div>}
+                {ev.description && ev.event_type !== "status_changed" && (
+                  <div className="tl-desc">{ev.description}</div>
+                )}
               </motion.div>
             );
           })}

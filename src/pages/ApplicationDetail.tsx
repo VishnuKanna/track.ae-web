@@ -36,7 +36,14 @@ export function ApplicationDetail() {
   const { id = "" } = useParams();
   const navigate = useNavigate();
   const toast = useToast();
-  const { jobs, companyById, updateJob, deleteJob, addEvent } = useData();
+  const {
+    jobs,
+    companyById,
+    updateApplication,
+    updateApplicationStatus,
+    deleteJob,
+    addApplicationEvent,
+  } = useData();
 
   const job = jobs.find((j) => j.id === id) ?? null;
   const [showDelete, setShowDelete] = useState(false);
@@ -79,8 +86,8 @@ export function ApplicationDetail() {
   const changeStatus = async (status: JobStatusKey) => {
     if (status === job.status) return;
     try {
-      // updateJob records the status_changed event with previous/new status.
-      await updateJob(job.id, { status });
+      // Canonical status path records the single status_changed event.
+      await updateApplicationStatus(job.id, status);
     } catch (err) {
       toast.error(
         err instanceof Error ? err.message : "Unable to update application. Please try again."
@@ -90,8 +97,12 @@ export function ApplicationDetail() {
 
   const markContacted = async () => {
     try {
-      await updateJob(job.id, { last_contact_date: todayISO() }, { skipEvents: true });
-      await addEvent(job.id, {
+      await updateApplication(
+        job.id,
+        { last_contact_date: todayISO() },
+        { skipEvents: true }
+      );
+      await addApplicationEvent(job.id, {
         event_type: "follow_up_sent",
         event_date: todayISO(),
         title: "Follow-up sent",
