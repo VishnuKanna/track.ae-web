@@ -1055,6 +1055,121 @@ table.data-table tbody tr.clickable {
   color: var(--text-secondary);
   margin-top: 2px;
 }
+.tl-when {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.tl-icon { color: var(--text-tertiary); }
+.tl-time { color: var(--text-tertiary); }
+.tl-round {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  color: var(--text-secondary);
+  vertical-align: middle;
+}
+.dark-theme .tl-round { border-color: var(--border-dark); }
+.tl-status-change {
+  margin-top: 4px;
+  font-size: var(--fs-sm);
+  color: var(--orange);
+  font-weight: 500;
+}
+
+/* EVENT SHEET (add timeline event) */
+.event-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.event-sheet-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-height: 44vh;
+  overflow-y: auto;
+  margin: 0 -4px;
+  padding: 2px 4px;
+}
+.event-group-label {
+  font-size: var(--fs-xs);
+  letter-spacing: 0.14em;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  margin-bottom: 8px;
+}
+.event-group-items {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.event-type-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-primary);
+  transition: border-color var(--dur-micro) var(--ease-out),
+    background var(--dur-micro) var(--ease-out);
+}
+.dark-theme .event-type-row {
+  border-color: var(--border-dark);
+  color: var(--white);
+}
+.event-type-row:hover { border-color: var(--border-strong); }
+.event-type-row.is-selected {
+  border-color: var(--orange);
+  background: var(--orange-soft);
+}
+.event-type-icon {
+  display: inline-flex;
+  color: var(--text-tertiary);
+  margin-top: 1px;
+}
+.event-type-row.is-selected .event-type-icon { color: var(--orange); }
+.event-type-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.event-type-name { font-size: var(--fs-sm); font-weight: 500; }
+.event-type-desc {
+  font-size: var(--fs-xs);
+  color: var(--text-tertiary);
+  line-height: 1.35;
+}
+.event-type-check { color: var(--orange); margin-left: auto; flex-shrink: 0; }
+.event-sheet-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.event-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.event-check input { accent-color: var(--orange); }
+.event-sheet-actions { margin-top: 2px; }
+
+@media (max-width: 640px) {
+  .event-group-items { grid-template-columns: 1fr; }
+  .event-sheet-groups { max-height: 38vh; }
+}
 
 /* CHIPS FOR HR CONTACT */
 .contact-row {

@@ -30,7 +30,7 @@ import type { HRContact } from "@/types/database";
 type AppView = "cards" | "table";
 
 export function Applications() {
-  const { jobs, hrContacts, loading, hydrated, updateJob, addEvent } = useData();
+  const { jobs, hrContacts, loading, hydrated, updateJob } = useData();
   const { openAdd } = useUIState();
   const toast = useToast();
   const [params, setParams] = useSearchParams();
@@ -108,18 +108,14 @@ export function Applications() {
     job: Parameters<typeof ApplicationTable>[0]["jobs"][number],
     status: JobStatusKey
   ) => {
-    const prev = job.status;
-    if (prev === status) return;
+    if (job.status === status) return;
     try {
+      // updateJob writes the status_changed event; adding another would duplicate it.
       await updateJob(job.id, { status });
-      await addEvent(job.id, {
-        event_type: "status_changed",
-        event_date: new Date().toISOString().slice(0, 10),
-        title: `Status changed to ${STATUS_CONFIG[status].label}`,
-        description: `Moved from ${statusByKey(prev).label}.`,
-      });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not update status.");
+      toast.error(
+        err instanceof Error ? err.message : "Unable to update application. Please try again."
+      );
     }
   };
 

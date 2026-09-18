@@ -25,7 +25,7 @@ import { HRContactList } from "@/components/hr/HRContactList";
 import { ResumeUploader } from "@/components/resume/ResumeUploader";
 import { FollowUpCard } from "@/components/applications/FollowUpCard";
 import { ApplicationForm } from "@/components/applications/ApplicationForm";
-import { employmentTypeLabel, STATUS_CONFIG } from "@/config/status";
+import { employmentTypeLabel } from "@/config/status";
 import type { JobStatusKey } from "@/config/status";
 import { formatDateLong, safeUrl } from "@/lib/format";
 import { priorityLabel } from "@/config/priority";
@@ -79,15 +79,12 @@ export function ApplicationDetail() {
   const changeStatus = async (status: JobStatusKey) => {
     if (status === job.status) return;
     try {
+      // updateJob records the status_changed event with previous/new status.
       await updateJob(job.id, { status });
-      await addEvent(job.id, {
-        event_type: "status_changed",
-        event_date: todayISO(),
-        title: `Status changed to ${STATUS_CONFIG[status].label}`,
-        description: `Moved from ${STATUS_CONFIG[job.status as JobStatusKey].label}.`,
-      });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not update status.");
+      toast.error(
+        err instanceof Error ? err.message : "Unable to update application. Please try again."
+      );
     }
   };
 
@@ -210,7 +207,7 @@ export function ApplicationDetail() {
 
           <section className="section">
             <h2 className="section-label">Timeline & Events</h2>
-            <ApplicationTimeline jobId={job.id} />
+            <ApplicationTimeline jobId={job.id} job={job} />
           </section>
         </div>
 

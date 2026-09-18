@@ -364,7 +364,14 @@ export function ApplicationForm({
       }
       onClose();
     } catch (err) {
-      toast.error(safeErrorMessage(err, "Could not save application."));
+      toast.error(
+        safeErrorMessage(
+          err,
+          isEdit
+            ? "Unable to update application. Please try again."
+            : "Unable to add application. Please try again."
+        )
+      );
     } finally {
       setBusy(false);
     }

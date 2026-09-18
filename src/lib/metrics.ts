@@ -29,7 +29,7 @@ export function isSubmitted(job: Job): boolean {
 
 export function hasReachedInterview(job: Job, events: JobEvent[]): boolean {
   const status = job.status as JobStatusKey;
-  if (status === "interview" || status === "offer") return true;
+  if (status === "interview" || status === "waiting_for_offer" || status === "offer") return true;
   return events.some(
     (e) =>
       e.job_id === job.id &&
@@ -47,7 +47,7 @@ export function hasReachedOffer(job: Job, events: JobEvent[]): boolean {
 export function hasProgressed(job: Job, events: JobEvent[]): boolean {
   if (!isSubmitted(job)) return false;
   const status = job.status as JobStatusKey;
-  if (status === "recruiter_screen" || status === "interview" || status === "offer") return true;
+  if (status === "recruiter_screen" || status === "interview" || status === "waiting_for_offer" || status === "offer") return true;
   if (status === "rejected" || status === "withdrawn") {
     // A rejected application may have progressed; use its events/status history.
     return events.some((e) => e.job_id === job.id && e.event_type !== "application_submitted") ||
@@ -89,7 +89,12 @@ export function computeMetrics(
     active: jobs.filter((j) =>
       ACTIVE_STATUSES.includes(j.status as JobStatusKey)
     ).length,
-    interviews: jobs.filter((j) => j.status === "interview" || j.status === "offer").length + 0,
+    interviews: jobs.filter(
+      (j) =>
+        j.status === "interview" ||
+        j.status === "waiting_for_offer" ||
+        j.status === "offer"
+    ).length,
     offers: offered,
     thisMonth: jobs.filter((j) => isCurrentMonth(j.application_date)).length,
     followUpsDue,
@@ -109,6 +114,7 @@ export function statusBreakdown(jobs: Job[]): StageCounts[] {
     "applied",
     "recruiter_screen",
     "interview",
+    "waiting_for_offer",
     "offer",
     "rejected",
     "withdrawn",

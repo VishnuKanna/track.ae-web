@@ -57,8 +57,12 @@ export interface JobInput {
 export interface EventInput {
   event_type: string;
   event_date: string;
+  event_time?: string | null;
   title: string;
   description?: string | null;
+  round?: string | null;
+  previous_status?: string | null;
+  new_status?: string | null;
 }
 
 export type HRContactInput = Partial<{
@@ -358,12 +362,16 @@ export function DataProvider({
           job_id: jobId,
           event_type: input.event_type,
           event_date: input.event_date,
+          event_time: input.event_time ?? null,
           title: input.title,
           description: input.description ?? null,
+          round: input.round ?? null,
+          previous_status: input.previous_status ?? null,
+          new_status: input.new_status ?? null,
         })
         .select("*")
         .single();
-      if (error || !data) throw new Error("Could not add timeline event.");
+      if (error || !data) throw new Error("Unable to add event. Please try again.");
       setEvents((prev) => [data as JobEvent, ...prev]);
       return data as JobEvent;
     },
@@ -451,12 +459,27 @@ export function DataProvider({
       if (!prev) return;
 
       const optimistic: Job = { ...prev } as Job;
-      if (patch.job_title !== undefined) optimistic.job_title = patch.job_title || prev.job_title;
+      if (patch.job_title !== undefined) optimistic.job_title = patch.job_title.trim() || prev.job_title;
       if (patch.company_name !== undefined) optimistic.company_name = patch.company_name.trim() || prev.company_name;
+      if (patch.job_url !== undefined) optimistic.job_url = toNull(patch.job_url);
+      if (patch.job_id !== undefined) optimistic.job_id = toNull(patch.job_id);
+      if (patch.location !== undefined) optimistic.location = toNull(patch.location);
+      if (patch.address !== undefined) optimistic.address = toNull(patch.address);
+      if (patch.salary_min !== undefined) optimistic.salary_min = toNum(patch.salary_min);
+      if (patch.salary_max !== undefined) optimistic.salary_max = toNum(patch.salary_max);
+      if (patch.salary_currency !== undefined) optimistic.salary_currency = toNull(patch.salary_currency);
+      if (patch.employment_type !== undefined) optimistic.employment_type = toNull(patch.employment_type);
       if (patch.status !== undefined) optimistic.status = patch.status;
       if (patch.application_date !== undefined) optimistic.application_date = toNull(patch.application_date);
       if (patch.next_follow_up_date !== undefined) optimistic.next_follow_up_date = toNull(patch.next_follow_up_date);
       if (patch.last_contact_date !== undefined) optimistic.last_contact_date = toNull(patch.last_contact_date);
+      if (patch.source !== undefined) optimistic.source = toNull(patch.source);
+      if (patch.referral_name !== undefined) optimistic.referral_name = toNull(patch.referral_name);
+      if (patch.referral_contact !== undefined) optimistic.referral_contact = toNull(patch.referral_contact);
+      if (patch.recruiter_notes !== undefined) optimistic.recruiter_notes = toNull(patch.recruiter_notes);
+      if (patch.resume_version !== undefined) optimistic.resume_version = toNull(patch.resume_version);
+      if (patch.cover_letter_version !== undefined) optimistic.cover_letter_version = toNull(patch.cover_letter_version);
+      if (patch.job_description !== undefined) optimistic.job_description = toNull(patch.job_description);
       if (patch.priority !== undefined) optimistic.priority = patch.priority;
       optimistic.updated_at = new Date().toISOString();
 
@@ -488,31 +511,33 @@ export function DataProvider({
         const { error } = await sb.from("jobs").update(payload).eq("id", id).eq("user_id", uid);
         if (error) throw error;
 
+        // Status changes always produce a timeline event, even when the caller
+        // passes skipEvents (which only suppresses incidental follow-up noise).
+        if (statusChanged) {
+          const fromLabel = statusByKey(prev.status).label;
+          const toLabel = statusByKey(patch.status).label;
+          await insertEventRow(id, {
+            event_type: "status_changed",
+            event_date: todayISO(),
+            title: `Status changed ${fromLabel} → ${toLabel}`,
+            description: `${prev.job_title} moved from ${fromLabel} to ${toLabel}.`,
+            previous_status: prev.status,
+            new_status: patch.status,
+          });
+        }
+
         if (!opts?.skipEvents) {
-          if (statusChanged) {
-            await insertEventRow(id, {
-              event_type: "status_changed",
-              event_date: todayISO(),
-              title: `Status changed to ${statusByKey(patch.status).label}`,
-              description: `Moved ${prev.job_title} from ${statusByKey(prev.status).label} to ${statusByKey(patch.status).label}.`,
-            });
-          }
           if (
-            (patch.last_contact_date !== undefined &&
-              patch.last_contact_date !== prev.last_contact_date &&
-              patch.last_contact_date) ||
-            (patch.application_date !== undefined &&
-              patch.application_date !== prev.application_date &&
-              patch.application_date)
+            patch.last_contact_date !== undefined &&
+            patch.last_contact_date !== prev.last_contact_date &&
+            patch.last_contact_date
           ) {
-            if (patch.last_contact_date && patch.last_contact_date !== prev.last_contact_date) {
-              await insertEventRow(id, {
-                event_type: "follow_up_sent",
-                event_date: patch.last_contact_date,
-                title: "Follow-up sent",
-                description: "Marked as contacted.",
-              });
-            }
+            await insertEventRow(id, {
+              event_type: "follow_up_sent",
+              event_date: patch.last_contact_date,
+              title: "Follow-up sent",
+              description: "Marked as contacted.",
+            });
           }
 
           if (companyChanged) {
@@ -525,7 +550,9 @@ export function DataProvider({
         }
       } catch (err) {
         setJobs((list) => list.map((j) => (j.id === id ? prev : j)));
-        throw new Error(safeErrorMessage(err, "Could not update application."));
+        throw new Error(
+          safeErrorMessage(err, "Unable to update application. Please try again.")
+        );
       }
     },
     [requireUser, syncCompany, jobPayload, insertEventRow]
@@ -676,7 +703,7 @@ export function DataProvider({
         })
         .select("*")
         .single();
-      if (error || !data) throw new Error("Could not add HR contact.");
+      if (error || !data) throw new Error("Unable to add contact. Please try again.");
       const contact = data as HRContact;
       setHrContacts((prev) => [...prev, contact]);
       return contact;
@@ -709,7 +736,9 @@ export function DataProvider({
         if (error) throw error;
       } catch (err) {
         setHrContacts((list) => list.map((c) => (c.id === id ? prev : c)));
-        throw new Error(safeErrorMessage(err, "Could not update HR contact."));
+        throw new Error(
+          safeErrorMessage(err, "Unable to update contact. Please try again.")
+        );
       }
     },
     [requireUser]

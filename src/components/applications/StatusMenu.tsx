@@ -93,8 +93,13 @@ export function StatusMenu({
   return (
     <div className="status-menu" ref={triggerRef}>
       <button
+        type="button"
         className={cn("status-trigger", size === "sm" && "status-trigger-sm")}
-        onClick={() => !disabled && setOpen((o) => !o)}
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          if (!disabled) setOpen((o) => !o);
+        }}
         disabled={disabled}
         aria-haspopup="listbox"
         aria-expanded={open}

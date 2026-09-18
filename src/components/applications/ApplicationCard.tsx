@@ -23,7 +23,7 @@ interface ApplicationCardProps {
 export function ApplicationCard({ job, index = 0 }: ApplicationCardProps) {
   const navigate = useNavigate();
   const toast = useToast();
-  const { updateJob, addEvent, deleteJob } = useData();
+  const { updateJob, deleteJob } = useData();
   const [menuOpen, setMenuOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -36,15 +36,13 @@ export function ApplicationCard({ job, index = 0 }: ApplicationCardProps) {
   const changeStatus = async (status: JobStatusKey) => {
     if (status === job.status) return;
     try {
+      // updateJob records the status_changed timeline event itself — do not add
+      // a second one here or every change would appear twice in the timeline.
       await updateJob(job.id, { status });
-      await addEvent(job.id, {
-        event_type: "status_changed",
-        event_date: new Date().toISOString().slice(0, 10),
-        title: `Status changed`,
-        description: `Moved to ${status.replace(/_/g, " ")}.`,
-      });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not update status.");
+      toast.error(
+        err instanceof Error ? err.message : "Unable to update application. Please try again."
+      );
     }
   };
 
@@ -99,21 +97,40 @@ export function ApplicationCard({ job, index = 0 }: ApplicationCardProps) {
             <StatusMenu value={job.status} size="sm" align="right" onChange={changeStatus} />
             <div className="card-menu-wrap">
               <button
+                type="button"
                 className="card-menu-trigger"
                 aria-label="Application actions"
                 aria-haspopup="menu"
                 aria-expanded={menuOpen}
-                onClick={() => setMenuOpen((o) => !o)}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setMenuOpen((o) => !o);
+                }}
               >
                 <MoreVertical size={16} />
               </button>
               {menuOpen && (
                 <>
-                  <div className="card-menu-backdrop" onClick={() => setMenuOpen(false)} />
-                  <div className="card-menu" role="menu">
+                  <div
+                    className="card-menu-backdrop"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setMenuOpen(false);
+                    }}
+                  />
+                  <div
+                    className="card-menu"
+                    role="menu"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <button
+                      type="button"
                       role="menuitem"
-                      onClick={() => {
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
                         setMenuOpen(false);
                         setEditOpen(true);
                       }}
@@ -121,9 +138,12 @@ export function ApplicationCard({ job, index = 0 }: ApplicationCardProps) {
                       <Pencil size={14} /> Edit
                     </button>
                     <button
+                      type="button"
                       role="menuitem"
                       className="is-danger"
-                      onClick={() => {
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
                         setMenuOpen(false);
                         setConfirmDelete(true);
                       }}

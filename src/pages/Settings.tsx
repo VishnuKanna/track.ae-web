@@ -21,7 +21,7 @@ import type { HRContact } from "@/types/database";
 
 export function Settings() {
   const { profile, user, logout: signOut, updatePassword } = useAuth();
-  const { jobs, companies, contactsForJob, hydrated, loading } = useData();
+  const { jobs, companies, contactsForJob, hydrated, loading, refresh } = useData();
   const toast = useToast();
   const navigate = useNavigate();
 
@@ -149,7 +149,22 @@ export function Settings() {
                   Re-read everything from the database.
                 </div>
               </div>
-              <Button variant="ghost" size="sm" onClick={() => { window.location.reload(); return; }}>
+              <Button
+                variant="ghost"
+                size="sm"
+                loading={busy === "refresh"}
+                onClick={async () => {
+                  setBusy("refresh");
+                  try {
+                    await refresh();
+                    toast.success("Workspace refreshed.");
+                  } catch {
+                    toast.error("Unable to refresh. Please try again.");
+                  } finally {
+                    setBusy(null);
+                  }
+                }}
+              >
                 <RefreshCw size={15} /> <span className="hidden-mobile">Reload data</span>
               </Button>
             </div>

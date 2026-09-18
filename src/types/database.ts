@@ -81,8 +81,12 @@ export interface JobEvent {
   job_id: string;
   event_type: string;
   event_date: string;
+  event_time: string | null;
   title: string;
   description: string | null;
+  round: string | null;
+  previous_status: string | null;
+  new_status: string | null;
   created_at: string;
 }
 

@@ -3,6 +3,7 @@ export type JobStatusKey =
   | "applied"
   | "recruiter_screen"
   | "interview"
+  | "waiting_for_offer"
   | "offer"
   | "rejected"
   | "withdrawn";
@@ -29,6 +30,7 @@ export const STATUS_KEYS: JobStatusKey[] = [
   "applied",
   "recruiter_screen",
   "interview",
+  "waiting_for_offer",
   "offer",
   "rejected",
   "withdrawn",
@@ -63,26 +65,33 @@ export const STATUS_CONFIG: Record<JobStatusKey, StatusConfig> = {
     semantic: "Interviewing with the team.",
     stage: 3,
   },
+  waiting_for_offer: {
+    key: "waiting_for_offer",
+    label: "Waiting for Offer",
+    tone: "orange",
+    semantic: "Interviews done — awaiting a decision.",
+    stage: 4,
+  },
   offer: {
     key: "offer",
     label: "Offer",
     tone: "green",
     semantic: "Offer received.",
-    stage: 4,
+    stage: 5,
   },
   rejected: {
     key: "rejected",
     label: "Rejected",
     tone: "red",
     semantic: "This application ended.",
-    stage: 5,
+    stage: 6,
   },
   withdrawn: {
     key: "withdrawn",
     label: "Withdrawn",
     tone: "gray",
     semantic: "Pulled by you.",
-    stage: 5,
+    stage: 6,
   },
 };
 
@@ -98,6 +107,7 @@ export const ACTIVE_STATUSES: JobStatusKey[] = [
   "applied",
   "recruiter_screen",
   "interview",
+  "waiting_for_offer",
 ];
 
 export type EmploymentType =
